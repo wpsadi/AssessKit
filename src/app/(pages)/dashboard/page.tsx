@@ -1,0 +1,113 @@
+import { MockModeBanner } from "@/components/mock-mode-banner";
+import { Button } from "@/components/ui/button";
+import { api } from "@/trpc/server";
+import { Plus } from "lucide-react";
+import { CreateEventDialog } from "./_components/create-event-dialog";
+import { EventCard } from "./_components/event-card";
+import { UserNav } from "./_components/user-nav";
+
+export default async function DashboardPage() {
+	let events: {
+		id: string;
+		title: string;
+		description?: string | null;
+		start_date: string | null; // ISO date string
+		end_date: string | null; // ISO date string
+		is_active: boolean; // true if the event is currently active
+		// add any other fields you need
+	}[] = [];
+	let error = null;
+
+	try {
+		const apiEvents = await api.events.getEvents();
+		events = apiEvents.map((event) => ({
+			id: event.id,
+			title: event.title,
+			description: event.description,
+			start_date: event.startDate ? event.startDate.toISOString() : null,
+			end_date: event.endDate ? event.endDate.toISOString() : null,
+			is_active: event.isActive ?? false,
+		}));
+	} catch (err) {
+		error = err instanceof Error ? err.message : "Failed to load events";
+		console.error("Error loading events:", err);
+	}
+
+	if (error) {
+		return (
+			<div className="container mx-auto py-8">
+				<div className="text-center">
+					<h1 className="font-bold text-2xl text-destructive">Error</h1>
+					<p className="mt-2 text-muted-foreground">{error}</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Use mock profile since there's no authentication system
+	const displayProfile = {
+		id: "mock-user",
+		email: "demo@example.com",
+		full_name: "Demo User",
+		avatar_url: null,
+		role: "organizer" as const,
+		created_at: new Date().toISOString(),
+		updated_at: new Date().toISOString(),
+	};
+
+	return (
+		<div className="min-h-screen bg-background">
+			<header className="border-border border-b bg-card shadow-sm">
+				<div className="container mx-auto flex items-center justify-between px-4 py-4">
+					<h1 className="font-bold text-2xl">Quiz Platform</h1>
+					<UserNav />
+				</div>
+			</header>
+
+			<main className="container mx-auto px-4 py-8">
+				<MockModeBanner />
+
+				<div className="mb-8 flex items-center justify-between">
+					<div>
+						<h2 className="font-bold text-3xl">
+							Welcome back, {displayProfile.full_name || displayProfile.email}
+						</h2>
+						<p className="mt-2 text-muted-foreground">
+							Manage your quiz events and track participant progress
+						</p>
+					</div>
+					<CreateEventDialog>
+						<Button size="lg">
+							<Plus className="mr-2 h-4 w-4" />
+							Create Event
+						</Button>
+					</CreateEventDialog>
+				</div>
+
+				{events.length === 0 ? (
+					<div className="py-12 text-center">
+						<div className="mx-auto max-w-md">
+							<h3 className="mb-2 font-semibold text-xl">No events yet</h3>
+							<p className="mb-6 text-muted-foreground">
+								Create your first quiz event to get started with organizing
+								quizzes and managing participants.
+							</p>
+							<CreateEventDialog>
+								<Button size="lg">
+									<Plus className="mr-2 h-4 w-4" />
+									Create Your First Event
+								</Button>
+							</CreateEventDialog>
+						</div>
+					</div>
+				) : (
+					<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+						{events.map((event) => (
+							<EventCard key={event.id} event={event} />
+						))}
+					</div>
+				)}
+			</main>
+		</div>
+	);
+}

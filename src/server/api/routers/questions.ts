@@ -1,0 +1,320 @@
+import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import {
+	events,
+	participants,
+	questions,
+	responses,
+	rounds,
+	scores,
+} from "@/server/db/schema";
+import { asc, eq, gt, max } from "drizzle-orm";
+import { z } from "zod";
+
+const createQuestionSchema = z.object({
+	roundId: z.string(),
+	questionText: z.string().min(1, "Question text is required"),
+	answerIds: z.array(z.string()).min(1, "At least one answer ID is required"),
+	positivePoints: z.number().int().min(0).default(1),
+	negativePoints: z.number().int().max(0).default(0),
+	timeLimit: z.number().int().min(1).optional(),
+	useRoundDefault: z.boolean().default(true),
+	orderIndex: z.number().int().min(0).optional(),
+});
+
+const updateQuestionSchema = z.object({
+	id: z.string(),
+	questionText: z.string().min(1, "Question text is required").optional(),
+	answerIds: z
+		.array(z.string())
+		.min(1, "At least one answer ID is required")
+		.optional(),
+	positivePoints: z.number().int().min(0).optional(),
+	negativePoints: z.number().int().max(0).optional(),
+	timeLimit: z.number().int().min(1).optional(),
+	useRoundDefault: z.boolean().optional(),
+});
+
+const reorderSchema = z.object({
+	questions: z.array(
+		z.object({
+			id: z.string(),
+			orderIndex: z.number().int().min(0),
+		}),
+	),
+});
+
+export const questionsRouter = createTRPCRouter({
+	// CREATE - Add new question
+	create: publicProcedure
+		.input(createQuestionSchema)
+		.mutation(async ({ ctx, input }) => {
+			const { orderIndex, ...questionData } = input;
+
+			// If no order specified, get the next available order
+			const maxOrder =
+				orderIndex ??
+				(await ctx.db
+					.select({ maxOrder: max(questions.orderIndex) })
+					.from(questions)
+					.where(eq(questions.roundId, input.roundId))
+					.then((result) => (result[0]?.maxOrder ?? -1) + 1));
+
+			const [newQuestion] = await ctx.db
+				.insert(questions)
+				.values({
+					...questionData,
+					orderIndex: maxOrder,
+				})
+				.returning();
+
+			return newQuestion;
+		}),
+
+	// READ - Get all questions for a round
+	getByRound: publicProcedure
+		.input(z.object({ roundId: z.string() }))
+		.query(async ({ ctx, input }) => {
+			return ctx.db
+				.select()
+				.from(questions)
+				.where(eq(questions.roundId, input.roundId))
+				.orderBy(asc(questions.orderIndex));
+		}),
+
+	// READ - Get question by ID
+	getById: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.query(async ({ ctx, input }) => {
+			const [question] = await ctx.db
+				.select()
+				.from(questions)
+				.where(eq(questions.id, input.id))
+				.limit(1);
+
+			return question || null;
+		}),
+
+	// UPDATE - Update question
+	update: publicProcedure
+		.input(updateQuestionSchema)
+		.mutation(async ({ ctx, input }) => {
+			const { id, ...updateData } = input;
+
+			const [updatedQuestion] = await ctx.db
+				.update(questions)
+				.set({
+					...updateData,
+					updatedAt: new Date(),
+				})
+				.where(eq(questions.id, id))
+				.returning();
+
+			return updatedQuestion;
+		}),
+
+	// DELETE - Delete question and adjust order of remaining questions
+	delete: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			return ctx.db.transaction(async (tx) => {
+				// Get the question to be deleted
+				const [questionToDelete] = await tx
+					.select({
+						orderIndex: questions.orderIndex,
+						roundId: questions.roundId,
+					})
+					.from(questions)
+					.where(eq(questions.id, input.id))
+					.limit(1);
+
+				if (!questionToDelete) {
+					throw new Error("Question not found");
+				}
+
+				// Delete the question
+				await tx.delete(questions).where(eq(questions.id, input.id));
+
+				// Update order of remaining questions in the same round
+				await tx
+					.update(questions)
+					.set({ orderIndex: questionToDelete.orderIndex - 1 })
+					.where(gt(questions.orderIndex, questionToDelete.orderIndex));
+
+				return { success: true };
+			});
+		}),
+
+	// REORDER - Update order of multiple questions
+	reorder: publicProcedure
+		.input(reorderSchema)
+		.mutation(async ({ ctx, input }) => {
+			return ctx.db.transaction(async (tx) => {
+				const updatePromises = input.questions.map((question) =>
+					tx
+						.update(questions)
+						.set({ orderIndex: question.orderIndex, updatedAt: new Date() })
+						.where(eq(questions.id, question.id)),
+				);
+
+				await Promise.all(updatePromises);
+
+				return { success: true };
+			});
+		}),
+
+	// UTILITY - Move question up in order
+	moveUp: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			return ctx.db.transaction(async (tx) => {
+				const [currentQuestion] = await tx
+					.select({
+						orderIndex: questions.orderIndex,
+						roundId: questions.roundId,
+					})
+					.from(questions)
+					.where(eq(questions.id, input.id))
+					.limit(1);
+
+				if (!currentQuestion || currentQuestion.orderIndex === 0) {
+					throw new Error("Cannot move question up");
+				}
+
+				// Find the question above
+				const [upperQuestion] = await tx
+					.select()
+					.from(questions)
+					.where(eq(questions.orderIndex, currentQuestion.orderIndex - 1))
+					.limit(1);
+
+				if (!upperQuestion) {
+					throw new Error("No question to swap with");
+				}
+
+				// Swap orders
+				await tx
+					.update(questions)
+					.set({ orderIndex: upperQuestion.orderIndex, updatedAt: new Date() })
+					.where(eq(questions.id, input.id));
+
+				await tx
+					.update(questions)
+					.set({
+						orderIndex: currentQuestion.orderIndex,
+						updatedAt: new Date(),
+					})
+					.where(eq(questions.id, upperQuestion.id));
+
+				return { success: true };
+			});
+		}),
+
+	// UTILITY - Move question down in order
+	moveDown: publicProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			return ctx.db.transaction(async (tx) => {
+				const [currentQuestion] = await tx
+					.select({
+						orderIndex: questions.orderIndex,
+						roundId: questions.roundId,
+					})
+					.from(questions)
+					.where(eq(questions.id, input.id))
+					.limit(1);
+
+				if (!currentQuestion) {
+					throw new Error("Question not found");
+				}
+
+				// Find the question below
+				const [lowerQuestion] = await tx
+					.select()
+					.from(questions)
+					.where(eq(questions.orderIndex, currentQuestion.orderIndex + 1))
+					.limit(1);
+
+				if (!lowerQuestion) {
+					throw new Error("No question to swap with");
+				}
+
+				// Swap orders
+				await tx
+					.update(questions)
+					.set({ orderIndex: lowerQuestion.orderIndex, updatedAt: new Date() })
+					.where(eq(questions.id, input.id));
+
+				await tx
+					.update(questions)
+					.set({
+						orderIndex: currentQuestion.orderIndex,
+						updatedAt: new Date(),
+					})
+					.where(eq(questions.id, lowerQuestion.id));
+
+				return { success: true };
+			});
+		}),
+
+	// BULK - Create multiple questions
+	bulkCreate: publicProcedure
+		.input(
+			z.object({
+				roundId: z.string(),
+				questions: z.array(
+					z.object({
+						questionText: z.string().min(1, "Question text is required"),
+						answerIds: z
+							.array(z.string())
+							.min(1, "At least one answer ID is required"),
+						positivePoints: z.number().int().min(0).default(1),
+						negativePoints: z.number().int().max(0).default(0),
+						timeLimit: z.number().int().min(1).optional(),
+						useRoundDefault: z.boolean().default(true),
+					}),
+				),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			return ctx.db.transaction(async (tx) => {
+				const createdQuestions = [];
+
+				for (let i = 0; i < input.questions.length; i++) {
+					const question = input.questions[i];
+
+					if (!question) {
+						continue; // Skip if question is undefined
+					}
+
+					// Get next order index
+					const maxOrder = await tx
+						.select({ maxOrder: max(questions.orderIndex) })
+						.from(questions)
+						.where(eq(questions.roundId, input.roundId))
+						.then((result) => (result[0]?.maxOrder ?? -1) + 1);
+
+					const [newQuestion] = await tx
+						.insert(questions)
+						.values({
+							roundId: input.roundId,
+							questionText: question.questionText,
+							answerIds: question.answerIds,
+							positivePoints: question.positivePoints,
+							negativePoints: question.negativePoints,
+							timeLimit: question.timeLimit,
+							useRoundDefault: question.useRoundDefault,
+							orderIndex: maxOrder + i,
+						})
+						.returning();
+
+					createdQuestions.push(newQuestion);
+				}
+
+				return {
+					success: true,
+					created: createdQuestions.length,
+					questions: createdQuestions,
+				};
+			});
+		}),
+});
