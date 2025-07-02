@@ -6,6 +6,7 @@ import {
 	pgTable,
 	text,
 	timestamp,
+	unique,
 	uuid,
 } from "drizzle-orm/pg-core";
 
@@ -52,21 +53,28 @@ export const rounds = pgTable("rounds", {
 });
 
 // Questions
-export const questions = pgTable("questions", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	roundId: uuid("round_id")
-		.references(() => rounds.id, { onDelete: "cascade" })
-		.notNull(),
-	questionText: text("question_text").notNull(),
-	answerIds: jsonb("answer_ids").$type<string[]>().notNull(),
-	positivePoints: integer("positive_points").default(1).notNull(),
-	negativePoints: integer("negative_points").default(0).notNull(),
-	timeLimit: integer("time_limit"),
-	useRoundDefault: boolean("use_round_default").default(true).notNull(),
-	orderIndex: integer("order_index").default(0).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const questions = pgTable(
+	"questions",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		roundId: uuid("round_id")
+			.references(() => rounds.id, { onDelete: "cascade" })
+			.notNull(),
+		questionId: text("question_id").notNull(),
+		answerIds: jsonb("answer_ids").$type<string[]>().notNull(),
+		positivePoints: integer("positive_points").default(1).notNull(),
+		negativePoints: integer("negative_points").default(0).notNull(),
+		timeLimit: integer("time_limit"),
+		useRoundDefault: boolean("use_round_default").default(true).notNull(),
+		orderIndex: integer("order_index").default(0).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		// Unique constraint: questionId must be unique within each round
+		uniqueQuestionIdPerRound: unique().on(table.roundId, table.questionId),
+	}),
+);
 
 // Participants
 export const participants = pgTable("participants", {
@@ -125,6 +133,34 @@ export const scores = pgTable("scores", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Participant Sessions (track quiz progress and timing)
+export const participantSessions = pgTable("participant_sessions", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	participantId: uuid("participant_id")
+		.references(() => participants.id, { onDelete: "cascade" })
+		.notNull(),
+	eventId: uuid("event_id")
+		.references(() => events.id, { onDelete: "cascade" })
+		.notNull(),
+	roundId: uuid("round_id")
+		.references(() => rounds.id, { onDelete: "cascade" })
+		.notNull(),
+	currentQuestionId: uuid("current_question_id").references(
+		() => questions.id,
+		{ onDelete: "cascade" },
+	),
+	questionStartedAt: timestamp("question_started_at"),
+	isOnQuestion: boolean("is_on_question").default(false).notNull(),
+	totalQuestionsAnswered: integer("total_questions_answered")
+		.default(0)
+		.notNull(),
+	sessionStartedAt: timestamp("session_started_at").defaultNow().notNull(),
+	lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+	isCompleted: boolean("is_completed").default(false).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // -----------------
 // ✅ Relations
 // -----------------
@@ -136,6 +172,7 @@ export const eventsRelations = relations(events, ({ many }) => ({
 	rounds: many(rounds),
 	participants: many(participants),
 	scores: many(scores),
+	participantSessions: many(participantSessions),
 }));
 
 export const roundsRelations = relations(rounds, ({ one, many }) => ({
@@ -146,6 +183,7 @@ export const roundsRelations = relations(rounds, ({ one, many }) => ({
 	questions: many(questions),
 	responses: many(responses),
 	scores: many(scores),
+	participantSessions: many(participantSessions),
 }));
 
 export const questionsRelations = relations(questions, ({ one, many }) => ({
@@ -169,6 +207,7 @@ export const participantsRelations = relations(
 		}),
 		responses: many(responses),
 		scores: many(scores),
+		sessions: many(participantSessions),
 	}),
 );
 
@@ -201,3 +240,25 @@ export const scoresRelations = relations(scores, ({ one }) => ({
 		references: [events.id],
 	}),
 }));
+
+export const participantSessionsRelations = relations(
+	participantSessions,
+	({ one }) => ({
+		participant: one(participants, {
+			fields: [participantSessions.participantId],
+			references: [participants.id],
+		}),
+		event: one(events, {
+			fields: [participantSessions.eventId],
+			references: [events.id],
+		}),
+		round: one(rounds, {
+			fields: [participantSessions.roundId],
+			references: [rounds.id],
+		}),
+		currentQuestion: one(questions, {
+			fields: [participantSessions.currentQuestionId],
+			references: [questions.id],
+		}),
+	}),
+);

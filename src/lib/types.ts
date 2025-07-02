@@ -41,7 +41,7 @@ export interface Participant {
 
 export interface Question {
 	id: string;
-	questionText: string;
+	questionId: string;
 	answerIds: string[];
 	positivePoints: number;
 	negativePoints: number;
@@ -104,4 +104,20 @@ export interface LeaderboardStats {
 	highestScore: string | number | null;
 	totalResponses: number;
 	completionRate?: number;
+}
+
+export interface ParticipantSession {
+	id: string;
+	participantId: string;
+	eventId: string;
+	roundId: string;
+	currentQuestionId?: string | null;
+	questionStartedAt?: Date | null;
+	isOnQuestion: boolean;
+	totalQuestionsAnswered: number;
+	sessionStartedAt: Date;
+	lastActivityAt: Date;
+	isCompleted: boolean;
+	createdAt?: Date;
+	updatedAt?: Date;
 }

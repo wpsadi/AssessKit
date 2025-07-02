@@ -67,7 +67,7 @@ export function CreateQuestionDialog({
 
 			await createQuestionMutation.mutateAsync({
 				roundId,
-				questionText,
+				questionId: questionText,
 				answerIds,
 				positivePoints: points,
 				negativePoints: 0,
@@ -103,7 +103,7 @@ export function CreateQuestionDialog({
 
 					<div className="grid gap-4 py-4">
 						<div className="grid gap-2">
-							<Label htmlFor="questionText">Question Text</Label>
+							<Label htmlFor="questionId">Question ID</Label>
 							<Textarea
 								id="questionText"
 								value={questionText}

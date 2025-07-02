@@ -7,12 +7,12 @@ import {
 	rounds,
 	scores,
 } from "@/server/db/schema";
-import { asc, eq, gt, max } from "drizzle-orm";
+import { and, asc, eq, gt, max } from "drizzle-orm";
 import { z } from "zod";
 
 const createQuestionSchema = z.object({
 	roundId: z.string(),
-	questionText: z.string().min(1, "Question text is required"),
+	questionId: z.string().min(1, "Question ID is required"),
 	answerIds: z.array(z.string()).min(1, "At least one answer ID is required"),
 	positivePoints: z.number().int().min(0).default(1),
 	negativePoints: z.number().int().max(0).default(0),
@@ -23,7 +23,7 @@ const createQuestionSchema = z.object({
 
 const updateQuestionSchema = z.object({
 	id: z.string(),
-	questionText: z.string().min(1, "Question text is required").optional(),
+	questionId: z.string().min(1, "Question ID is required").optional(),
 	answerIds: z
 		.array(z.string())
 		.min(1, "At least one answer ID is required")
@@ -49,6 +49,24 @@ export const questionsRouter = createTRPCRouter({
 		.input(createQuestionSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { orderIndex, ...questionData } = input;
+
+			// Check if questionId already exists in this round
+			const existingQuestion = await ctx.db
+				.select({ id: questions.id })
+				.from(questions)
+				.where(
+					and(
+						eq(questions.roundId, input.roundId),
+						eq(questions.questionId, input.questionId),
+					),
+				)
+				.limit(1);
+
+			if (existingQuestion.length > 0) {
+				throw new Error(
+					`Question ID "${input.questionId}" already exists in this round. Please use a unique question ID.`,
+				);
+			}
 
 			// If no order specified, get the next available order
 			const maxOrder =
@@ -99,6 +117,43 @@ export const questionsRouter = createTRPCRouter({
 		.input(updateQuestionSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { id, ...updateData } = input;
+
+			// If questionId is being updated, check for uniqueness in the round
+			if (updateData.questionId) {
+				// First get the current question to know which round it belongs to
+				const [currentQuestion] = await ctx.db
+					.select({
+						roundId: questions.roundId,
+						questionId: questions.questionId,
+					})
+					.from(questions)
+					.where(eq(questions.id, id))
+					.limit(1);
+
+				if (!currentQuestion) {
+					throw new Error("Question not found");
+				}
+
+				// Only check for duplicates if the questionId is actually changing
+				if (currentQuestion.questionId !== updateData.questionId) {
+					const existingQuestion = await ctx.db
+						.select({ id: questions.id })
+						.from(questions)
+						.where(
+							and(
+								eq(questions.roundId, currentQuestion.roundId),
+								eq(questions.questionId, updateData.questionId),
+							),
+						)
+						.limit(1);
+
+					if (existingQuestion.length > 0) {
+						throw new Error(
+							`Question ID "${updateData.questionId}" already exists in this round. Please use a unique question ID.`,
+						);
+					}
+				}
+			}
 
 			const [updatedQuestion] = await ctx.db
 				.update(questions)
@@ -152,7 +207,10 @@ export const questionsRouter = createTRPCRouter({
 				const updatePromises = input.questions.map((question) =>
 					tx
 						.update(questions)
-						.set({ orderIndex: question.orderIndex, updatedAt: new Date() })
+						.set({
+							orderIndex: question.orderIndex,
+							updatedAt: new Date(),
+						})
 						.where(eq(questions.id, question.id)),
 				);
 
@@ -194,7 +252,10 @@ export const questionsRouter = createTRPCRouter({
 				// Swap orders
 				await tx
 					.update(questions)
-					.set({ orderIndex: upperQuestion.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: upperQuestion.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(eq(questions.id, input.id));
 
 				await tx
@@ -241,7 +302,10 @@ export const questionsRouter = createTRPCRouter({
 				// Swap orders
 				await tx
 					.update(questions)
-					.set({ orderIndex: lowerQuestion.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: lowerQuestion.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(eq(questions.id, input.id));
 
 				await tx
@@ -263,7 +327,7 @@ export const questionsRouter = createTRPCRouter({
 				roundId: z.string(),
 				questions: z.array(
 					z.object({
-						questionText: z.string().min(1, "Question text is required"),
+						questionId: z.string().min(1, "Question ID is required"),
 						answerIds: z
 							.array(z.string())
 							.min(1, "At least one answer ID is required"),
@@ -278,6 +342,35 @@ export const questionsRouter = createTRPCRouter({
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
 				const createdQuestions = [];
+				const usedQuestionIds = new Set<string>();
+
+				// Check for duplicates within the input first
+				for (const question of input.questions) {
+					if (usedQuestionIds.has(question.questionId)) {
+						throw new Error(
+							`Duplicate question ID "${question.questionId}" found in the input. Each question ID must be unique.`,
+						);
+					}
+					usedQuestionIds.add(question.questionId);
+				}
+
+				// Check for existing question IDs in the round
+				const existingQuestionIds = await tx
+					.select({ questionId: questions.questionId })
+					.from(questions)
+					.where(eq(questions.roundId, input.roundId));
+
+				const existingIds = new Set(
+					existingQuestionIds.map((q) => q.questionId),
+				);
+
+				for (const question of input.questions) {
+					if (existingIds.has(question.questionId)) {
+						throw new Error(
+							`Question ID "${question.questionId}" already exists in this round. Please use unique question IDs.`,
+						);
+					}
+				}
 
 				for (let i = 0; i < input.questions.length; i++) {
 					const question = input.questions[i];
@@ -297,7 +390,7 @@ export const questionsRouter = createTRPCRouter({
 						.insert(questions)
 						.values({
 							roundId: input.roundId,
-							questionText: question.questionText,
+							questionId: question.questionId,
 							answerIds: question.answerIds,
 							positivePoints: question.positivePoints,
 							negativePoints: question.negativePoints,

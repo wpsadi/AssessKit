@@ -98,7 +98,7 @@ export function SimpleCreateQuestionDialog({
 
 			const questionData = {
 				roundId: round.id,
-				questionText: formData.get("questionText") as string,
+				questionId: formData.get("questionId") as string,
 				answerIds: filteredAnswerIds,
 				positivePoints: Number(formData.get("positivePoints")),
 				negativePoints: Number(formData.get("negativePoints")),
@@ -174,11 +174,11 @@ export function SimpleCreateQuestionDialog({
 						</Alert>
 
 						<div className="grid gap-2">
-							<Label htmlFor="questionText">Question Text</Label>
+							<Label htmlFor="questionId">Question ID</Label>
 							<Textarea
-								id="questionText"
-								name="questionText"
-								placeholder="Enter your question"
+								id="questionId"
+								name="questionId"
+								placeholder="Enter your question ID"
 								rows={3}
 								required
 								disabled={createQuestion.isPending}

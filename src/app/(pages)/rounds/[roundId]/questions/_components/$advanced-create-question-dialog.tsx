@@ -98,7 +98,7 @@ export function AdvancedCreateQuestionDialog({
 
 			await createQuestionMutation.mutateAsync({
 				roundId: round.id,
-				questionText,
+				questionId: questionText,
 				answerIds,
 				positivePoints,
 				negativePoints,
@@ -217,7 +217,7 @@ export function AdvancedCreateQuestionDialog({
 						</Alert>
 
 						<div className="grid gap-2">
-							<Label htmlFor="questionText">Question Text</Label>
+							<Label htmlFor="questionId">Question ID</Label>
 							<Textarea
 								id="questionText"
 								value={questionText}

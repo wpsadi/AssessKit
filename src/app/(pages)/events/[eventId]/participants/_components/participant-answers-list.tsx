@@ -25,7 +25,7 @@ interface ParticipantAnswersListProps {
 
 interface Question {
 	id: string;
-	text: string;
+	questionId: string;
 	roundId: string;
 	roundTitle?: string;
 	correctAnswerIds: string[];
@@ -65,7 +65,7 @@ export function ParticipantAnswersList({
 								const question = await response.json();
 								questionsData[questionId] = {
 									id: question.id,
-									text: question.text || question.question_text,
+									questionId: question.questionId || question.question_id,
 									roundId: question.roundId || question.round_id,
 									roundTitle:
 										question.roundTitle ||
@@ -102,7 +102,7 @@ export function ParticipantAnswersList({
 	const filteredAnswers = answers.filter((answer) => {
 		const question = questions[answer.questionId || ""];
 		return (
-			(question?.text?.toLowerCase() ?? "").includes(
+			(question?.questionId?.toLowerCase() ?? "").includes(
 				searchTerm.toLowerCase(),
 			) ||
 			(answer.submittedAnswer?.toLowerCase() ?? "").includes(
@@ -175,9 +175,9 @@ export function ParticipantAnswersList({
 										<div className="flex items-start justify-between">
 											<div className="flex-1">
 												<CardTitle className="mb-2 text-base">
-													{question?.text ||
+													{question?.questionId ||
 														answer.questionId ||
-														"No question text"}
+														"No question Id"}
 												</CardTitle>
 												<div className="flex items-center gap-4 text-muted-foreground text-sm">
 													<div className="flex items-center gap-1">

@@ -106,7 +106,7 @@ export function SimpleQuestionEditor({
 
 	const handleSave = async (formData: FormData) => {
 		try {
-			const questionText = formData.get("questionText") as string;
+			const questionId = formData.get("questionId") as string;
 			const positivePoints = Number.parseInt(
 				formData.get("positivePoints") as string,
 			);
@@ -125,7 +125,7 @@ export function SimpleQuestionEditor({
 
 			await updateQuestion.mutateAsync({
 				id: question.id,
-				questionText,
+				questionId: questionId,
 				positivePoints,
 				negativePoints,
 				answerIds: filteredAnswerIds,
@@ -168,7 +168,7 @@ export function SimpleQuestionEditor({
 					<div className="flex-1">
 						<div className="mb-2 flex items-start justify-between">
 							<CardTitle className="text-lg">
-								Question {index}: {question.questionText}
+								Question {index}: {question.questionId}
 							</CardTitle>
 							<div className="flex gap-2">
 								{question.negativePoints < 0 && (
@@ -272,12 +272,12 @@ export function SimpleQuestionEditor({
 
 							<div className="grid gap-6">
 								<div className="grid gap-2">
-									<Label htmlFor="questionText">Question Text</Label>
+									<Label htmlFor="questionId">Question ID</Label>
 									<Textarea
-										id="questionText"
-										name="questionText"
-										defaultValue={question.questionText}
-										placeholder="Enter your question"
+										id="questionId"
+										name="questionId"
+										defaultValue={question.questionId}
+										placeholder="Enter your question ID"
 										rows={3}
 										required
 										disabled={updateQuestion.isPending}
