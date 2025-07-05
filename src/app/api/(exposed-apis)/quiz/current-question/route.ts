@@ -1,13 +1,12 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
 import { db } from "@/server/db";
 import {
-	events,
 	participantSessions,
 	questions,
 	responses,
 	rounds,
 } from "@/server/db/schema";
-import { and, asc, eq, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -31,180 +30,124 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const { searchParams } = new URL(request.url);
-		const roundId = searchParams.get("roundId");
+		const { participantId } = payload;
 
-		if (!roundId) {
-			return NextResponse.json(
-				{ error: "roundId parameter is required" },
-				{ status: 400 },
-			);
-		}
-
-		// Get all questions for the round
-		const allQuestions = await db
+		// Get the participant's current session
+		const [session] = await db
 			.select()
-			.from(questions)
-			.where(eq(questions.roundId, roundId))
-			.orderBy(asc(questions.orderIndex));
+			.from(participantSessions)
+			.where(eq(participantSessions.participantId, participantId))
+			.orderBy(desc(participantSessions.createdAt))
+			.limit(1);
 
-		if (allQuestions.length === 0) {
+		if (!session || !session.roundId) {
 			return NextResponse.json(
-				{ error: "No questions found for this round" },
+				{
+					error: "No active session found. Please start a round first.",
+				},
 				{ status: 404 },
 			);
 		}
 
-		// Get round details
-		const [round] = await db
+		const currentRoundId = session.roundId;
+
+		const [currentRound] = await db
 			.select()
 			.from(rounds)
-			.where(eq(rounds.id, roundId))
+			.where(eq(rounds.id, currentRoundId))
 			.limit(1);
 
-		if (!round) {
+		if (!currentRound) {
 			return NextResponse.json(
-				{ error: "Round not found" },
 				{
-					status: 404,
+					error: "Internal server error: Round not found for the session.",
 				},
+				{ status: 500 },
 			);
 		}
 
-		// Get event details
-		const [event] = await db
+		// Get all questions for the current round
+		const allQuestions = await db
 			.select()
-			.from(events)
-			.where(eq(events.id, round.eventId))
-			.limit(1);
+			.from(questions)
+			.where(eq(questions.roundId, currentRoundId))
+			.orderBy(asc(questions.orderIndex));
 
-		if (!event) {
-			return NextResponse.json(
-				{ error: "Event not found" },
-				{
-					status: 404,
+		if (allQuestions.length === 0) {
+			return NextResponse.json({
+				completed: true,
+				message: "This round has no questions.",
+				progress: {
+					current: 0,
+					total: 0,
 				},
-			);
+			});
 		}
 
-		// Get already answered questions
+		// Get all answered question IDs for the participant in the current round
 		const answeredQuestions = await db
 			.select({ questionId: responses.questionId })
 			.from(responses)
 			.where(
 				and(
-					eq(responses.participantId, payload.participantId),
-					eq(responses.roundId, roundId),
+					eq(responses.participantId, participantId),
+					eq(responses.roundId, currentRoundId),
 				),
 			);
 
 		const answeredQuestionIds = answeredQuestions.map((r) => r.questionId);
 
 		// Find the first unanswered question
-		const currentQuestion = allQuestions.find(
+		const nextQuestion = allQuestions.find(
 			(q) => !answeredQuestionIds.includes(q.id),
 		);
 
-		if (!currentQuestion) {
+		if (!nextQuestion) {
 			return NextResponse.json({
 				completed: true,
-				message: "All questions have been answered",
-				totalQuestions: allQuestions.length,
-				answeredQuestions: answeredQuestionIds.length,
+				message: "All questions in this round have been answered.",
+				progress: {
+					current: allQuestions.length,
+					total: allQuestions.length,
+				},
 			});
 		}
 
-		// Get or create participant session
-		let [session] = await db
-			.select()
-			.from(participantSessions)
-			.where(
-				and(
-					eq(participantSessions.participantId, payload.participantId),
-					eq(participantSessions.roundId, roundId),
-				),
-			)
-			.limit(1);
+		let questionStartTime = session.questionStartedAt;
 
-		if (!session) {
-			// Create new session
-			[session] = await db
-				.insert(participantSessions)
-				.values({
-					participantId: payload.participantId,
-					eventId: payload.eventId,
-					roundId: roundId,
-					currentQuestionId: currentQuestion.id,
+		// If the current question in the session is not the next unanswered question,
+		// it means we need to start the timer for the new question.
+		if (session.currentQuestionId !== nextQuestion.id) {
+			questionStartTime = new Date();
+			await db
+				.update(participantSessions)
+				.set({
+					currentQuestionId: nextQuestion.id,
+					questionStartedAt: questionStartTime,
+					isOnQuestion: true,
 				})
-				.returning();
+				.where(eq(participantSessions.id, session.id));
 		}
 
-		if (!session) {
-			return NextResponse.json(
-				{ error: "Failed to create or retrieve session" },
-				{ status: 500 },
-			);
-		}
+		const timeLimitSeconds =
+			nextQuestion.useRoundDefault && currentRound.timeLimit
+				? currentRound.timeLimit
+				: nextQuestion.timeLimit;
 
-		// Calculate effective time limit in seconds
-		const effectiveTimeLimit = currentQuestion.useRoundDefault
-			? round.useEventDuration
-				? event.durationMinutes * 60
-				: round.timeLimit || 3600
-			: currentQuestion.timeLimit || 3600;
-
-		// Calculate time remaining for current question
-		let timeRemaining = null;
-		let isExpired = false;
-
-		if (session.isOnQuestion && session.questionStartedAt) {
-			const now = new Date();
-			const questionStartTime = new Date(session.questionStartedAt);
-			const elapsedSeconds = Math.floor(
-				(now.getTime() - questionStartTime.getTime()) / 1000,
-			);
-			timeRemaining = Math.max(0, effectiveTimeLimit - elapsedSeconds);
-			isExpired = timeRemaining <= 0;
-		}
+		const endTime =
+			timeLimitSeconds && questionStartTime
+				? new Date(questionStartTime.getTime() + timeLimitSeconds * 1000)
+				: null;
 
 		return NextResponse.json({
-			currentQuestion: {
-				id: currentQuestion.id,
-				questionId: currentQuestion.questionId,
-				// answerIds: currentQuestion.answerIds,
-				positivePoints: currentQuestion.positivePoints,
-				negativePoints: currentQuestion.negativePoints,
-				timeLimit: currentQuestion.timeLimit,
-				useRoundDefault: currentQuestion.useRoundDefault,
-				orderIndex: currentQuestion.orderIndex,
-				effectiveTimeLimit: effectiveTimeLimit,
-			},
-			timing: {
-				timeRemaining: timeRemaining,
-				isExpired: isExpired,
-				questionStartedAt: session.questionStartedAt,
-				effectiveTimeLimit: effectiveTimeLimit,
-			},
+			questionId: nextQuestion.questionId,
 			progress: {
 				current: answeredQuestionIds.length + 1,
 				total: allQuestions.length,
-				answered: answeredQuestionIds.length,
 			},
-			session: {
-				id: session.id,
-				isOnQuestion: session.isOnQuestion,
-				questionStartedAt: session.questionStartedAt,
-			},
-			round: {
-				id: round.id,
-				title: round.title,
-				useEventDuration: round.useEventDuration,
-				timeLimit: round.timeLimit,
-			},
-			event: {
-				id: event.id,
-				title: event.title,
-				durationMinutes: event.durationMinutes,
+			timing: {
+				startTime: questionStartTime,
+				endTime: endTime,
 			},
 		});
 	} catch (error) {

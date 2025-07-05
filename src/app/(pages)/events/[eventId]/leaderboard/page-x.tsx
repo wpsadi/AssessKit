@@ -115,9 +115,9 @@ export default async function LeaderboardPage({
 			// Get event stats
 			const eventStats = await api.leaderboard.getEventStats({ eventId });
 			stats = {
-				totalParticipants: eventStats.totalParticipants,
-				averageScore: Number(eventStats.averageScore) || 0,
-				highestScore: Number(eventStats.highestScore) || 0,
+				totalParticipants: Number(eventStats?.totalParticipants) || 0,
+				averageScore: Number(eventStats?.averageScore) || 0,
+				highestScore: Number(eventStats?.highestScore) || 0,
 				completionRate: 0, // Calculate completion rate if needed
 			};
 		} catch (error) {

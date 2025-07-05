@@ -113,25 +113,31 @@ export const responses = pgTable("responses", {
 });
 
 // Scores (aggregated per round)
-export const scores = pgTable("scores", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	participantId: uuid("participant_id")
-		.references(() => participants.id, { onDelete: "cascade" })
-		.notNull(),
-	roundId: uuid("round_id")
-		.references(() => rounds.id, { onDelete: "cascade" })
-		.notNull(),
-	eventId: uuid("event_id")
-		.references(() => events.id, { onDelete: "cascade" })
-		.notNull(),
-	totalPoints: integer("total_points").default(0).notNull(),
-	totalQuestions: integer("total_questions").default(0).notNull(),
-	correctAnswers: integer("correct_answers").default(0).notNull(),
-	completionTime: integer("completion_time"),
-	completedAt: timestamp("completed_at"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const scores = pgTable(
+	"scores",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		participantId: uuid("participant_id")
+			.references(() => participants.id, { onDelete: "cascade" })
+			.notNull(),
+		roundId: uuid("round_id")
+			.references(() => rounds.id, { onDelete: "cascade" })
+			.notNull(),
+		eventId: uuid("event_id")
+			.references(() => events.id, { onDelete: "cascade" })
+			.notNull(),
+		totalPoints: integer("total_points").default(0).notNull(),
+		totalQuestions: integer("total_questions").default(0).notNull(),
+		correctAnswers: integer("correct_answers").default(0).notNull(),
+		completionTime: integer("completion_time"),
+		completedAt: timestamp("completed_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		participantRoundUnique: unique().on(table.participantId, table.roundId),
+	}),
+);
 
 // Participant Sessions (track quiz progress and timing)
 export const participantSessions = pgTable("participant_sessions", {

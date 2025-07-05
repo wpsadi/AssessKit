@@ -1,16 +1,41 @@
-import { db } from "@/server/db"; // your Drizzle DB instance
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import type { NeonHttpDatabase } from "drizzle-orm/neon-http";
+import { db } from ".";
+import { scores } from "./schema";
 
-// Create the function
-await db.execute(sql`
-  CREATE OR REPLACE FUNCTION generate_plaintext_password()
-  RETURNS TRIGGER AS $$
-  BEGIN
-    IF NEW.password IS NULL THEN
-      -- Generates a random 12-character string (plain text)
-      NEW.password := substr(md5(random()::text), 1, 12);
-    END IF;
-    RETURN NEW;
-  END;
-  $$ LANGUAGE plpgsql;
-`);
+export async function updateScores(
+	participantId: string,
+	roundId: string,
+	eventId: string,
+	pointsEarned: number,
+	isCorrect: boolean,
+) {
+	await db
+		.insert(scores)
+		.values({
+			participantId,
+			roundId,
+			eventId,
+			totalPoints: pointsEarned,
+			totalQuestions: 1,
+			correctAnswers: isCorrect ? 1 : 0,
+		})
+		.onConflictDoUpdate({
+			target: [scores.participantId, scores.roundId],
+			set: {
+				totalPoints: sql`${scores.totalPoints} + ${pointsEarned}`,
+				totalQuestions: sql`${scores.totalQuestions} + 1`,
+				correctAnswers: isCorrect
+					? sql`${scores.correctAnswers} + 1`
+					: scores.correctAnswers,
+				updatedAt: new Date(),
+			},
+		});
+}
+
+export async function recalculate_event_scores(
+	db: NeonHttpDatabase<typeof import("./schema")>,
+	event_id: string,
+) {
+	await db.execute(sql`SELECT recalculate_event_scores(${event_id})`);
+}

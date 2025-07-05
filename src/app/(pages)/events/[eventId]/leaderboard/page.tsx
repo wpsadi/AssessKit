@@ -161,7 +161,7 @@ export default function LeaderboardPage({
 	}
 
 	const stats: ComponentLeaderboardStats = {
-		totalParticipants: eventStats?.totalParticipants || 0,
+		totalParticipants: Number(eventStats?.totalParticipants) || 0,
 		averageScore: Number(eventStats?.averageScore) || 0,
 		highestScore: Number(eventStats?.highestScore) || 0,
 		completionRate: 0, // Calculate completion rate if needed

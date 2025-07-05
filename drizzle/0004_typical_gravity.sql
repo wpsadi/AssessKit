@@ -1,0 +1,1 @@
+ALTER TABLE "scores" ADD CONSTRAINT "scores_participant_id_round_id_unique" UNIQUE("participant_id","round_id");

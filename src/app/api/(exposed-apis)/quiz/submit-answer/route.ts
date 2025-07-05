@@ -1,13 +1,13 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
 import { db } from "@/server/db";
+import { updateScores } from "@/server/db/functions";
 import {
-	events,
 	participantSessions,
 	questions,
 	responses,
 	rounds,
 } from "@/server/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -31,7 +31,9 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		let body: { questionId?: string; roundId?: string; answer?: string };
+		const { participantId } = payload;
+
+		let body: { questionId?: string; answer?: string };
 		try {
 			body = await request.json();
 		} catch (error) {
@@ -41,189 +43,202 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const { questionId, roundId, answer } = body;
+		const { questionId, answer } = body;
 
-		if (!questionId || !roundId || answer === undefined || answer === null) {
+		if (!questionId || answer === undefined || answer === null) {
 			return NextResponse.json(
-				{ error: "questionId, roundId, and answer are required" },
+				{ error: "questionId and answer are required" },
 				{ status: 400 },
 			);
 		}
 
-		// Get question details
-		const [question] = await db
+		const [session] = await db
 			.select()
-			.from(questions)
-			.where(eq(questions.id, questionId))
+			.from(participantSessions)
+			.where(eq(participantSessions.participantId, participantId))
+			.orderBy(desc(participantSessions.createdAt))
 			.limit(1);
 
-		if (!question) {
+		if (!session || !session.roundId) {
 			return NextResponse.json(
-				{ error: "Question not found" },
+				{
+					error: "No active session found. Please start a round first.",
+				},
 				{ status: 404 },
 			);
 		}
 
-		// Get round details
-		const [round] = await db
-			.select()
-			.from(rounds)
-			.where(eq(rounds.id, roundId))
-			.limit(1);
+		const currentRoundId = session.roundId;
 
-		if (!round) {
+		// Get all questions for the round to check order
+		const allQuestionsForRound = await db
+			.select()
+			.from(questions)
+			.where(eq(questions.roundId, currentRoundId))
+			.orderBy(asc(questions.orderIndex));
+
+		const [question] = allQuestionsForRound.filter(
+			(q) => q.questionId === questionId,
+		);
+
+		if (!question) {
 			return NextResponse.json(
-				{ error: "Round not found" },
 				{
-					status: 404,
+					error: `Question "${questionId}" not found in the active round`,
 				},
+				{ status: 404 },
 			);
 		}
 
-		// Get event details for proper time calculation
-		const [event] = await db
-			.select()
-			.from(events)
-			.where(eq(events.id, round.eventId))
-			.limit(1);
-
-		if (!event) {
-			return NextResponse.json(
-				{ error: "Event not found" },
-				{
-					status: 404,
-				},
-			);
-		}
-
-		// Get participant session to check timing
-		const [session] = await db
-			.select()
-			.from(participantSessions)
+		// Check if previous questions have been answered
+		const answeredQuestions = await db
+			.select({
+				questionId: responses.questionId,
+			})
+			.from(responses)
 			.where(
 				and(
-					eq(participantSessions.participantId, payload.participantId),
-					eq(participantSessions.roundId, roundId),
+					eq(responses.participantId, participantId),
+					eq(responses.roundId, currentRoundId),
 				),
-			)
-			.limit(1);
+			);
 
-		let timeTaken: number | null = null;
-		let isLate = false;
-		let effectiveTimeLimit = 0;
-
-		if (session?.questionStartedAt) {
-			const startTime = new Date(session.questionStartedAt).getTime();
-			const submitTime = new Date().getTime();
-			timeTaken = Math.floor((submitTime - startTime) / 1000); // in seconds
-
-			// Calculate effective time limit properly
-			effectiveTimeLimit = question.useRoundDefault
-				? round.useEventDuration
-					? event.durationMinutes * 60 // Convert minutes to seconds
-					: round.timeLimit || 3600 // Use round time limit or default
-				: question.timeLimit || 3600;
-
-			if (timeTaken > effectiveTimeLimit) {
-				isLate = true;
-				// Reject late submissions
-				return NextResponse.json(
-					{
-						error: "Question time limit exceeded. Answer cannot be submitted.",
-						isLate: true,
-						timeTaken: timeTaken,
-						effectiveTimeLimit: effectiveTimeLimit,
-					},
-					{ status: 408 }, // Request Timeout
-				);
-			}
+		if (question.orderIndex !== answeredQuestions.length) {
+			return NextResponse.json(
+				{
+					error: "Questions must be answered in order.",
+					expectedQuestionOrder: answeredQuestions.length,
+					submittedQuestionOrder: question.orderIndex,
+				},
+				{ status: 409 }, // Conflict
+			);
 		}
 
-		// Check if answer is correct (strict matching with answer IDs)
-		const isCorrect = question.answerIds.includes(answer.toString().trim());
-
-		// Calculate points earned
-		let pointsEarned = 0;
-		if (isCorrect) {
-			pointsEarned = question.positivePoints;
-		} else {
-			pointsEarned = question.negativePoints;
+		if (!session.questionStartedAt) {
+			return NextResponse.json(
+				{
+					error:
+						"Question not started. Call /api/quiz/current-question to start the question timer.",
+				},
+				{ status: 400 },
+			);
 		}
 
-		// If submitted late, could apply penalty (optional)
-		// Note: This block is now unreachable since we reject late submissions above
-		// if (isLate && isCorrect) {
-		//     pointsEarned = Math.floor(pointsEarned * 0.5);
-		// }
+		if (session.currentQuestionId !== question.id) {
+			return NextResponse.json(
+				{
+					error: "The submitted answer is not for the current active question.",
+				},
+				{ status: 409 },
+			);
+		}
 
-		// Check if response already exists
 		const [existingResponse] = await db
 			.select()
 			.from(responses)
 			.where(
 				and(
-					eq(responses.participantId, payload.participantId),
-					eq(responses.questionId, questionId),
-					eq(responses.roundId, roundId),
+					eq(responses.participantId, participantId),
+					eq(responses.questionId, question.id),
 				),
 			)
 			.limit(1);
 
 		if (existingResponse) {
 			return NextResponse.json(
-				{ error: "Response already submitted for this question" },
-				{ status: 400 },
+				{ error: "This question has already been answered." },
+				{ status: 409 },
 			);
 		}
 
-		// Insert response
-		const [newResponse] = await db
-			.insert(responses)
-			.values({
-				participantId: payload.participantId,
-				questionId: questionId,
-				roundId: roundId,
-				submittedAnswer: answer.toString(),
-				isCorrect: isCorrect,
-				pointsEarned: pointsEarned,
-				timeTaken: timeTaken,
-				submittedAt: new Date(),
-			})
-			.returning();
+		const now = new Date();
+		const questionStartTime = new Date(session.questionStartedAt);
+		const timeTaken = now.getTime() - questionStartTime.getTime();
 
-		// Update session
+		const [currentRound] = await db
+			.select()
+			.from(rounds)
+			.where(eq(rounds.id, currentRoundId))
+			.limit(1);
+
+		if (!currentRound) {
+			return NextResponse.json(
+				{
+					error: "Internal server error: Round not found for the session.",
+				},
+				{ status: 500 },
+			);
+		}
+
+		const timeLimitSeconds =
+			question.useRoundDefault && currentRound.timeLimit
+				? currentRound.timeLimit
+				: question.timeLimit;
+
+		const isLate =
+			timeLimitSeconds !== null ? timeTaken > timeLimitSeconds * 1000 : false;
+
+		const isCorrect = question.answerIds.includes(answer as string);
+
+		let pointsEarned = 0;
+		if (!isLate) {
+			pointsEarned = isCorrect
+				? question.positivePoints
+				: -question.negativePoints;
+		}
+
+		// Find the next question to automatically enable it
+		const nextQuestion = allQuestionsForRound.find(
+			(q) => q.orderIndex === question.orderIndex + 1,
+		);
+
 		await db
 			.update(participantSessions)
 			.set({
-				isOnQuestion: false,
-				totalQuestionsAnswered: session
-					? session.totalQuestionsAnswered + 1
-					: 1,
-				lastActivityAt: new Date(),
+				isOnQuestion: !!nextQuestion,
+				currentQuestionId: nextQuestion ? nextQuestion.id : null,
+				questionStartedAt: nextQuestion ? new Date() : null,
+				lastActivityAt: now,
+				totalQuestionsAnswered: session.totalQuestionsAnswered + 1,
 			})
-			.where(
-				and(
-					eq(participantSessions.participantId, payload.participantId),
-					eq(participantSessions.roundId, roundId),
-				),
-			);
+			.where(eq(participantSessions.id, session.id));
+
+		await db.insert(responses).values({
+			participantId,
+			roundId: currentRoundId,
+			questionId: question.id,
+			submittedAnswer: answer as string,
+			isCorrect,
+			pointsEarned,
+			timeTaken,
+			submittedAt: now,
+		});
+
+		await updateScores(
+			participantId,
+			currentRoundId,
+			session.eventId as string,
+			pointsEarned,
+			isCorrect,
+		);
+
+		const remainingTime =
+			timeLimitSeconds !== null
+				? Math.max(0, timeLimitSeconds * 1000 - timeTaken)
+				: null;
 
 		return NextResponse.json({
-			success: true,
-			response: {
-				id: newResponse?.id,
-				isCorrect: isCorrect,
-				pointsEarned: pointsEarned,
-				timeTaken: timeTaken,
-				isLate: isLate,
-				effectiveTimeLimit: effectiveTimeLimit,
-				correctAnswers: question.answerIds,
-			},
+			message: "Answer submitted successfully",
+			isCorrect,
+			pointsEarned,
+			isLate,
+			timeTaken,
+			remainingTime,
 		});
 	} catch (error) {
-		console.error("Submit answer error:", error);
+		console.error("Error submitting answer:", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "An unexpected error occurred." },
 			{ status: 500 },
 		);
 	}

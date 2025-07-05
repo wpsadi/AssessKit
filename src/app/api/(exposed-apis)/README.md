@@ -35,6 +35,12 @@ Login a participant and receive a token.
     "name": "Participant Name",
     "email": "participant@example.com",
     "eventId": "event-uuid"
+  },
+  "session": {
+    "sessionId": "session-uuid",
+    "roundId": "round-uuid",
+    "roundTitle": "Round 1",
+    "isNewSession": true
   }
 }
 ```
@@ -63,9 +69,9 @@ Authorization: Bearer <token>
 ```
 
 ### 3. Get Current Question
-**GET** `/api/quiz/current-question?roundId=<round-uuid>`
+**GET** `/api/quiz/current-question?eventId=<event-uuid>`
 
-Get the current question for the participant.
+Get the current question for the participant. The active round is auto-detected.
 
 **Headers:**
 ```
@@ -77,13 +83,19 @@ Authorization: Bearer <token>
 {
   "currentQuestion": {
     "id": "question-uuid",
-    "questionText": "What is the capital of France?",
-    "answerIds": ["paris", "Paris", "PARIS"],
+    "questionId": "Q1",
     "positivePoints": 10,
     "negativePoints": -2,
     "timeLimit": 60,
     "useRoundDefault": false,
-    "orderIndex": 1
+    "orderIndex": 1,
+    "effectiveTimeLimit": 60
+  },
+  "timing": {
+    "timeRemaining": null,
+    "isExpired": false,
+    "questionStartedAt": null,
+    "effectiveTimeLimit": 60
   },
   "progress": {
     "current": 1,
@@ -94,6 +106,17 @@ Authorization: Bearer <token>
     "id": "session-uuid",
     "isOnQuestion": false,
     "questionStartedAt": null
+  },
+  "round": {
+    "id": "round-uuid",
+    "title": "Round 1",
+    "useEventDuration": false,
+    "timeLimit": 300
+  },
+  "event": {
+    "id": "event-uuid",
+    "title": "Quiz Event",
+    "durationMinutes": 60
   }
 }
 ```
@@ -101,7 +124,7 @@ Authorization: Bearer <token>
 ### 4. Start Question
 **POST** `/api/quiz/start-question`
 
-Mark that the participant is now viewing a question (starts timing).
+Mark that the participant is now viewing a question (starts timing). The active round is auto-detected based on the event.
 
 **Headers:**
 ```
@@ -111,8 +134,7 @@ Authorization: Bearer <token>
 **Body:**
 ```json
 {
-  "questionId": "question-uuid",
-  "roundId": "round-uuid"
+  "questionId": "Q1"
 }
 ```
 
@@ -124,6 +146,24 @@ Authorization: Bearer <token>
     "id": "session-uuid",
     "questionStartedAt": "2025-07-01T10:30:00.000Z",
     "isOnQuestion": true
+  },
+  "timing": {
+    "effectiveTimeLimit": 60,
+    "timeRemaining": 60,
+    "questionStartedAt": "2025-07-01T10:30:00.000Z"
+  },
+  "question": {
+    "questionId": "Q1",
+    "answerIds": ["paris", "Paris", "PARIS"],
+    "positivePoints": 10,
+    "negativePoints": -2,
+    "timeLimit": 60,
+    "useRoundDefault": false
+  },
+  "round": {
+    "title": "Round 1",
+    "timeLimit": 300,
+    "useEventDuration": false
   }
 }
 ```
@@ -141,8 +181,8 @@ Authorization: Bearer <token>
 **Body:**
 ```json
 {
-  "questionId": "question-uuid",
-  "roundId": "round-uuid",
+  "questionId": "Q1",
+  "eventId": "event-uuid",
   "answer": "paris"
 }
 ```
