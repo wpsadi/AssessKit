@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
 		if (!session || !session.roundId) {
 			return NextResponse.json(
 				{
-					error: "No active session found. Please start a round first.",
+					error:
+						"No active session found. Please start a round first.",
 				},
 				{ status: 404 },
 			);
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
 		if (!question) {
 			return NextResponse.json(
 				{
-					error: `Question "${questionId}" not found in the active round`,
+					error:
+						`Question "${questionId}" not found in the active round`,
 				},
 				{ status: 404 },
 			);
@@ -114,23 +116,18 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		if (!session.questionStartedAt) {
-			return NextResponse.json(
-				{
-					error:
-						"Question not started. Call /api/quiz/current-question to start the question timer.",
-				},
-				{ status: 400 },
-			);
-		}
-
-		if (session.currentQuestionId !== question.id) {
-			return NextResponse.json(
-				{
-					error: "The submitted answer is not for the current active question.",
-				},
-				{ status: 409 },
-			);
+		// Auto-start the question timer if it hasn't been started yet
+		let questionStartTime = session.questionStartedAt;
+		if (!questionStartTime || session.currentQuestionId !== question.id) {
+			questionStartTime = new Date();
+			await db
+				.update(participantSessions)
+				.set({
+					currentQuestionId: question.id,
+					questionStartedAt: questionStartTime,
+					isOnQuestion: true,
+				})
+				.where(eq(participantSessions.id, session.id));
 		}
 
 		const [existingResponse] = await db
@@ -152,8 +149,25 @@ export async function POST(request: NextRequest) {
 		}
 
 		const now = new Date();
-		const questionStartTime = new Date(session.questionStartedAt);
-		const timeTaken = now.getTime() - questionStartTime.getTime();
+
+		// Auto-start the question timer if it hasn't been started yet
+		let actualQuestionStartTime = session.questionStartedAt;
+		if (
+			!actualQuestionStartTime ||
+			session.currentQuestionId !== question.id
+		) {
+			actualQuestionStartTime = new Date();
+			await db
+				.update(participantSessions)
+				.set({
+					currentQuestionId: question.id,
+					questionStartedAt: actualQuestionStartTime,
+					isOnQuestion: true,
+				})
+				.where(eq(participantSessions.id, session.id));
+		}
+
+		const timeTaken = now.getTime() - actualQuestionStartTime.getTime();
 
 		const [currentRound] = await db
 			.select()
@@ -164,7 +178,8 @@ export async function POST(request: NextRequest) {
 		if (!currentRound) {
 			return NextResponse.json(
 				{
-					error: "Internal server error: Round not found for the session.",
+					error:
+						"Internal server error: Round not found for the session.",
 				},
 				{ status: 500 },
 			);
@@ -175,8 +190,9 @@ export async function POST(request: NextRequest) {
 				? currentRound.timeLimit
 				: question.timeLimit;
 
-		const isLate =
-			timeLimitSeconds !== null ? timeTaken > timeLimitSeconds * 1000 : false;
+		const isLate = timeLimitSeconds !== null
+			? timeTaken > timeLimitSeconds * 1000
+			: false;
 
 		const isCorrect = question.answerIds.includes(answer as string);
 
@@ -222,10 +238,9 @@ export async function POST(request: NextRequest) {
 			isCorrect,
 		);
 
-		const remainingTime =
-			timeLimitSeconds !== null
-				? Math.max(0, timeLimitSeconds * 1000 - timeTaken)
-				: null;
+		const remainingTime = timeLimitSeconds !== null
+			? Math.max(0, timeLimitSeconds * 1000 - timeTaken)
+			: null;
 
 		return NextResponse.json({
 			message: "Answer submitted successfully",
