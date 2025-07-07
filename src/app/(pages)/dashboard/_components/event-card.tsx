@@ -26,9 +26,17 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, participantCount = 0 }: EventCardProps) {
-	const formatDate = (dateString: string | null) => {
+	const formatDateTime = (dateString: string | null) => {
 		if (!dateString) return "Not set";
-		return new Date(dateString).toLocaleDateString();
+		const date = new Date(dateString);
+		return date.toLocaleString(undefined, {
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: true,
+		});
 	};
 
 	return (
@@ -51,7 +59,8 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 				<div className="flex items-center text-gray-600 text-sm">
 					<Calendar className="mr-2 h-4 w-4" />
 					<span>
-						{formatDate(event.start_date)} - {formatDate(event.end_date)}
+						{formatDateTime(event.start_date)} -{" "}
+						{formatDateTime(event.end_date)}
 					</span>
 				</div>
 

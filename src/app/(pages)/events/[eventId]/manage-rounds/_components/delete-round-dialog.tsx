@@ -17,7 +17,7 @@ import { api } from "@/trpc/react";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
+import { toast } from "sonner";
 interface DeleteRoundDialogProps {
 	round: Round;
 	children: React.ReactNode;
@@ -32,13 +32,15 @@ export function DeleteRoundDialog({ round, children }: DeleteRoundDialogProps) {
 			if (result.success) {
 				setOpen(false);
 				router.refresh();
+				// Add success toast
+				toast.success("Round deleted successfully");
 			} else {
-				alert(result || "Failed to delete round");
+				toast.error("Failed to delete round");
 			}
 		},
 		onError: (error) => {
 			console.error("Error deleting round:", error);
-			alert("An error occurred while deleting the round");
+			toast.error(error.message || "Failed to delete round");
 		},
 	});
 

@@ -1,5 +1,7 @@
 "use client";
 
+import CSVImportWidget from "@/components/csv-import-widget";
+import ExportWidget from "@/components/export-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,14 +88,8 @@ export default function ParticipantsPage() {
 						</p>
 					</div>
 					<div className="flex gap-2">
-						<Button variant="outline" size="lg">
-							<Upload className="mr-2 h-4 w-4" />
-							Import CSV
-						</Button>
-						<Button variant="outline" size="lg">
-							<Download className="mr-2 h-4 w-4" />
-							Export CSV
-						</Button>
+						<CSVImportWidget eventId={eventId} />
+						<ExportWidget eventId={eventId} eventName={event.title} />
 						<CreateParticipantDialog
 							eventId={eventId}
 							onSuccess={() => refetchParticipants()}
@@ -126,10 +122,7 @@ export default function ParticipantsPage() {
 										Add First Participant
 									</Button>
 								</CreateParticipantDialog>
-								<Button variant="outline" size="lg">
-									<Upload className="mr-2 h-4 w-4" />
-									Import CSV
-								</Button>
+								<CSVImportWidget eventId={eventId} />
 							</div>
 						</div>
 					</div>

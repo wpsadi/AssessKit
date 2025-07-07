@@ -1,1 +1,0 @@
-ALTER TABLE "questions" RENAME COLUMN "question_text" TO "question_id";

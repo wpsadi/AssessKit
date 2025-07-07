@@ -1,7 +1,5 @@
 "use client";
 
-import type React from "react";
-
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,8 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Event, Round } from "@/lib/types";
 import { api } from "@/trpc/react";
-import { AlertTriangle, Clock, Info, Loader2, Minus, Plus } from "lucide-react";
+import { Clock, Info, Loader2, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type React from "react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
@@ -47,7 +46,14 @@ export function SimpleCreateQuestionDialog({
 		{ id: crypto.randomUUID(), value: "" },
 	]);
 	const [useRoundDefault, setUseRoundDefault] = useState(true);
-	const [customTimeLimit, setCustomTimeLimit] = useState(60);
+	const [customTimeLimit, setCustomTimeLimit] = useState(60); // seconds
+	const [errors, setErrors] = useState<{
+		questionId?: string;
+		answerIds?: string;
+		timeLimit?: string;
+		points?: string;
+	}>({});
+
 	const router = useRouter();
 
 	const createQuestion = api.questions.create.useMutation({
@@ -60,17 +66,17 @@ export function SimpleCreateQuestionDialog({
 		},
 		onError: (error) => {
 			console.error("Error creating question:", error);
-			toast.error("Failed to create question");
+			toast.error(error.message || "Failed to create question");
 		},
 	});
 
-	// Calculate constraints
+	// Calculate time constraints - convert round minutes to seconds
 	const roundTimeMinutes = round.useEventDuration
 		? event.durationMinutes
 		: round.timeLimit || event.durationMinutes;
-	const maxQuestionTimeSeconds = (roundTimeMinutes ?? 30) * 60;
+	const maxQuestionTimeSeconds = (roundTimeMinutes || 60) * 60; // Convert to seconds
 	const effectiveTimeLimit = useRoundDefault
-		? (roundTimeMinutes ?? 30) * 60
+		? maxQuestionTimeSeconds
 		: customTimeLimit;
 
 	// Check for duplicate answer IDs
@@ -82,29 +88,48 @@ export function SimpleCreateQuestionDialog({
 		(value, index) => answerValues.indexOf(value) !== index,
 	);
 
+	const validateForm = () => {
+		const newErrors: typeof errors = {};
+
+		// Validate answer IDs
+		const validAnswerIds = answerIds.filter((item) => item.value.trim());
+		if (validAnswerIds.length === 0) {
+			newErrors.answerIds = "At least one answer ID is required";
+		} else if (hasDuplicates) {
+			newErrors.answerIds = `Duplicate answer IDs found: ${duplicateIds.join(", ")}`;
+		}
+
+		// Validate time limit
+		if (!useRoundDefault) {
+			if (customTimeLimit < 10) {
+				newErrors.timeLimit = "Time limit must be at least 10 seconds";
+			} else if (customTimeLimit > maxQuestionTimeSeconds) {
+				newErrors.timeLimit = `Time limit cannot exceed ${formatTime(maxQuestionTimeSeconds)} (round duration)`;
+			}
+		}
+
+		setErrors(newErrors);
+		return Object.keys(newErrors).length === 0;
+	};
+
 	const handleSubmit = async (formData: FormData) => {
+		if (!validateForm()) {
+			return;
+		}
+
 		try {
 			const filteredAnswerIds = answerIds
-				.map((item) => item.value)
-				.filter((id) => id.trim());
-
-			// Check for duplicates before submitting
-			if (new Set(filteredAnswerIds).size !== filteredAnswerIds.length) {
-				toast.error(
-					"Duplicate answer IDs found. Each answer ID must be unique.",
-				);
-				return;
-			}
+				.map((item) => item.value.trim())
+				.filter((id) => id);
 
 			const questionData = {
 				roundId: round.id,
-				questionId: formData.get("questionId") as string,
+				questionId: (formData.get("questionId") as string).trim(),
 				answerIds: filteredAnswerIds,
-				positivePoints: Number(formData.get("positivePoints")),
-				negativePoints: Number(formData.get("negativePoints")),
-				timeLimit: useRoundDefault
-					? (roundTimeMinutes ?? 30) * 60
-					: customTimeLimit,
+				positivePoints: Number(formData.get("positivePoints")) || 1,
+				negativePoints: Number(formData.get("negativePoints")) || 0,
+				useRoundDefault,
+				timeLimit: useRoundDefault ? undefined : customTimeLimit,
 			};
 
 			await createQuestion.mutateAsync(questionData);
@@ -117,6 +142,7 @@ export function SimpleCreateQuestionDialog({
 		setAnswerIds([{ id: crypto.randomUUID(), value: "" }]);
 		setUseRoundDefault(true);
 		setCustomTimeLimit(60);
+		setErrors({});
 	};
 
 	const addAnswerId = useCallback(() => {
@@ -134,12 +160,12 @@ export function SimpleCreateQuestionDialog({
 	}, []);
 
 	const formatTime = (seconds: number) => {
+		if (seconds < 60) return `${seconds}s`;
 		const minutes = Math.floor(seconds / 60);
-		const secs = seconds % 60;
-		if (minutes > 0) {
-			return `${minutes}m ${secs}s`;
-		}
-		return `${secs}s`;
+		const remainingSeconds = seconds % 60;
+		return remainingSeconds > 0
+			? `${minutes}m ${remainingSeconds}s`
+			: `${minutes}m`;
 	};
 
 	return (
@@ -163,30 +189,34 @@ export function SimpleCreateQuestionDialog({
 							<Info className="h-4 w-4" />
 							<AlertDescription className="flex items-center gap-4">
 								<span>
-									Round Time: {formatTime((roundTimeMinutes ?? 30) * 60)}
+									Round Duration: {formatTime(maxQuestionTimeSeconds)}
 								</span>
 								<span>•</span>
 								<span className="flex items-center gap-1">
 									<Clock className="h-3 w-3" />
-									Default: Round time limit
+									Default: Use full round duration
 								</span>
 							</AlertDescription>
 						</Alert>
 
 						<div className="grid gap-2">
-							<Label htmlFor="questionId">Question ID</Label>
+							<Label htmlFor="questionId">Question ID *</Label>
 							<Textarea
 								id="questionId"
 								name="questionId"
-								placeholder="Enter your question ID"
+								placeholder="Enter your question ID or text"
 								rows={3}
 								required
 								disabled={createQuestion.isPending}
+								className={errors.questionId ? "border-destructive" : ""}
 							/>
+							{errors.questionId && (
+								<p className="text-destructive text-sm">{errors.questionId}</p>
+							)}
 						</div>
 
 						<div className="grid gap-2">
-							<Label>Answer IDs</Label>
+							<Label>Answer IDs *</Label>
 							<div className="space-y-2">
 								{answerIds.map((item, idx) => {
 									const isDuplicate =
@@ -200,7 +230,7 @@ export function SimpleCreateQuestionDialog({
 													updateAnswerId(item.id, e.target.value)
 												}
 												placeholder={`Answer ID ${idx + 1}`}
-												className={`flex-1 ${isDuplicate ? "border-red-500 focus:border-red-500" : ""}`}
+												className={`flex-1 ${isDuplicate ? "border-destructive" : ""}`}
 												disabled={createQuestion.isPending}
 											/>
 											{answerIds.length > 1 && (
@@ -222,25 +252,18 @@ export function SimpleCreateQuestionDialog({
 									variant="outline"
 									size="sm"
 									onClick={addAnswerId}
-									className="w-full"
+									className="w-full bg-transparent"
 									disabled={createQuestion.isPending}
 								>
 									<Plus className="mr-2 h-4 w-4" />
 									Add Answer ID
 								</Button>
 							</div>
-							<p className="text-gray-500 text-xs">
+							<p className="text-muted-foreground text-xs">
 								System will do strict matching with participant answers
 							</p>
-
-							{hasDuplicates && (
-								<Alert variant="destructive">
-									<AlertTriangle className="h-4 w-4" />
-									<AlertDescription>
-										Duplicate answer IDs found: {duplicateIds.join(", ")}. Each
-										answer ID must be unique.
-									</AlertDescription>
-								</Alert>
+							{errors.answerIds && (
+								<p className="text-destructive text-sm">{errors.answerIds}</p>
 							)}
 						</div>
 
@@ -252,12 +275,11 @@ export function SimpleCreateQuestionDialog({
 									name="positivePoints"
 									type="number"
 									min="1"
-									max="20"
+									max="100"
 									defaultValue="1"
-									required
 									disabled={createQuestion.isPending}
 								/>
-								<p className="text-gray-500 text-xs">
+								<p className="text-muted-foreground text-xs">
 									Points awarded for correct answer
 								</p>
 							</div>
@@ -269,18 +291,18 @@ export function SimpleCreateQuestionDialog({
 									name="negativePoints"
 									type="number"
 									max="0"
-									min="-20"
+									min="-100"
 									defaultValue="0"
 									placeholder="0 for no penalty"
 									disabled={createQuestion.isPending}
 								/>
-								<p className="text-gray-500 text-xs">
+								<p className="text-muted-foreground text-xs">
 									Points deducted for wrong answer
 								</p>
 							</div>
 						</div>
 
-						<div className="grid gap-2">
+						<div className="grid gap-4">
 							<Label>Time Limit</Label>
 							<div className="space-y-3">
 								<div className="flex items-center space-x-2">
@@ -292,8 +314,7 @@ export function SimpleCreateQuestionDialog({
 										disabled={createQuestion.isPending}
 									/>
 									<Label className="text-sm">
-										Use round default (
-										{formatTime((roundTimeMinutes ?? 30) * 60)})
+										Use round duration ({formatTime(maxQuestionTimeSeconds)})
 									</Label>
 								</div>
 
@@ -305,35 +326,42 @@ export function SimpleCreateQuestionDialog({
 											max={maxQuestionTimeSeconds}
 											value={customTimeLimit}
 											onChange={(e) =>
-												setCustomTimeLimit(Number(e.target.value))
+												setCustomTimeLimit(Math.max(10, Number(e.target.value)))
 											}
 											placeholder="Time in seconds"
 											disabled={createQuestion.isPending}
+											className={errors.timeLimit ? "border-destructive" : ""}
 										/>
-										<p className="text-gray-500 text-xs">
-											Max: {formatTime(maxQuestionTimeSeconds)} (round limit)
+										<p className="text-muted-foreground text-xs">
+											Range: 10 seconds to {formatTime(maxQuestionTimeSeconds)}{" "}
+											(round duration)
 										</p>
+										{errors.timeLimit && (
+											<p className="text-destructive text-sm">
+												{errors.timeLimit}
+											</p>
+										)}
 									</div>
 								)}
+
+								<div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+									<p className="text-blue-700 text-sm">
+										<strong>Effective Time Limit:</strong>{" "}
+										{formatTime(effectiveTimeLimit)}
+									</p>
+								</div>
 							</div>
 						</div>
-
-						{effectiveTimeLimit > maxQuestionTimeSeconds && (
-							<Alert variant="destructive">
-								<AlertTriangle className="h-4 w-4" />
-								<AlertDescription>
-									Time limit exceeds round maximum (
-									{formatTime(maxQuestionTimeSeconds)})
-								</AlertDescription>
-							</Alert>
-						)}
 					</div>
 
 					<DialogFooter>
 						<Button
 							type="button"
 							variant="outline"
-							onClick={() => setOpen(false)}
+							onClick={() => {
+								setOpen(false);
+								resetForm();
+							}}
 							disabled={createQuestion.isPending}
 						>
 							Cancel
@@ -341,10 +369,9 @@ export function SimpleCreateQuestionDialog({
 						<Button
 							type="submit"
 							disabled={
-								createQuestion.isPending ||
-								effectiveTimeLimit > maxQuestionTimeSeconds ||
-								hasDuplicates
+								createQuestion.isPending || Object.keys(errors).length > 0
 							}
+							onClick={() => validateForm()}
 						>
 							{createQuestion.isPending ? (
 								<>

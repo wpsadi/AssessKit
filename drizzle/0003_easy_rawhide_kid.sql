@@ -1,1 +1,0 @@
-ALTER TABLE "questions" ADD CONSTRAINT "questions_round_id_question_id_unique" UNIQUE("round_id","question_id");

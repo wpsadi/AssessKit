@@ -10,7 +10,9 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
-// Profiles table (used for participants only, not organizers)
+// ---------------------------
+// ✅ Profiles
+// ---------------------------
 export const profiles = pgTable("profiles", {
 	id: uuid("id").primaryKey(),
 	email: text("email").notNull(),
@@ -21,7 +23,9 @@ export const profiles = pgTable("profiles", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Events
+// ---------------------------
+// ✅ Events
+// ---------------------------
 export const events = pgTable("events", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	title: text("title").notNull(),
@@ -36,7 +40,9 @@ export const events = pgTable("events", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Rounds
+// ---------------------------
+// ✅ Rounds
+// ---------------------------
 export const rounds = pgTable("rounds", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	eventId: uuid("event_id")
@@ -52,7 +58,9 @@ export const rounds = pgTable("rounds", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Questions
+// ---------------------------
+// ✅ Questions
+// ---------------------------
 export const questions = pgTable(
 	"questions",
 	{
@@ -71,29 +79,38 @@ export const questions = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => ({
-		// Unique constraint: questionId must be unique within each round
 		uniqueQuestionIdPerRound: unique().on(table.roundId, table.questionId),
 	}),
 );
 
-// Participants
-export const participants = pgTable("participants", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	eventId: uuid("event_id")
-		.references(() => events.id, { onDelete: "cascade" })
-		.notNull(),
-	userId: uuid("user_id").references(() => profiles.id),
-	name: text("name").notNull(),
-	email: text("email").notNull(),
-	// Changed from `passwordHash` to `password` (plaintext - NOT RECOMMENDED)
-	password: text("password"),
-	isActive: boolean("is_active").default(true).notNull(),
-	orderIndex: integer("order_index").default(0).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+// ---------------------------
+// ✅ Participants
+// ---------------------------
+export const participants = pgTable(
+	"participants",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		eventId: uuid("event_id")
+			.references(() => events.id, { onDelete: "cascade" })
+			.notNull(),
+		userId: uuid("user_id").references(() => profiles.id),
+		name: text("name").notNull(),
+		email: text("email").notNull(),
+		password: text("password"), // Note: plaintext — not recommended
+		isActive: boolean("is_active").default(true).notNull(),
+		orderIndex: integer("order_index").default(0).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		// ✅ Ensures email is unique within a given event
+		uniqueEmailPerEvent: unique().on(table.eventId, table.email),
+	}),
+);
 
-// Responses
+// ---------------------------
+// ✅ Responses
+// ---------------------------
 export const responses = pgTable("responses", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	participantId: uuid("participant_id")
@@ -112,7 +129,9 @@ export const responses = pgTable("responses", {
 	submittedAt: timestamp("submitted_at").defaultNow().notNull(),
 });
 
-// Scores (aggregated per round)
+// ---------------------------
+// ✅ Scores
+// ---------------------------
 export const scores = pgTable(
 	"scores",
 	{
@@ -139,7 +158,9 @@ export const scores = pgTable(
 	}),
 );
 
-// Participant Sessions (track quiz progress and timing)
+// ---------------------------
+// ✅ Participant Sessions
+// ---------------------------
 export const participantSessions = pgTable("participant_sessions", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	participantId: uuid("participant_id")
@@ -167,9 +188,9 @@ export const participantSessions = pgTable("participant_sessions", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// -----------------
+// ---------------------------
 // ✅ Relations
-// -----------------
+// ---------------------------
 export const profilesRelations = relations(profiles, ({ many }) => ({
 	participants: many(participants),
 }));

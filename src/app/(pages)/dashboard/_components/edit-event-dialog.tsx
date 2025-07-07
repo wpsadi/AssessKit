@@ -16,8 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 interface EditEventDialogProps {
 	event: {
@@ -31,38 +33,77 @@ interface EditEventDialogProps {
 }
 
 export function EditEventDialog({ event, children }: EditEventDialogProps) {
+	const formatDateForInput = (dateString: string | null) => {
+		if (!dateString) return "";
+		return new Date(dateString).toISOString().slice(0, 16);
+	};
+
+	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
+	const [startDate, setStartDate] = useState(
+		formatDateForInput(event.start_date),
+	);
+	const [endDate, setEndDate] = useState(formatDateForInput(event.end_date));
 	const router = useRouter();
 
-	const updateEvent = api.events.updateEvent.useMutation({});
+	const updateEvent = api.events.updateEvent.useMutation({
+		onSuccess: () => {
+			toast.success("Event updated successfully");
+			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
+			setOpen(false);
+			router.refresh();
+		},
+	});
 
 	const handleSubmit = async (formData: FormData) => {
 		setIsLoading(true);
 		try {
+			const startDateTime = formData.get("startDate") as string;
+			const endDateTime = formData.get("endDate") as string;
+
+			// Validate that start date is before end date
+			if (
+				startDateTime &&
+				endDateTime &&
+				new Date(startDateTime) >= new Date(endDateTime)
+			) {
+				toast.error("Start time must be before end time");
+				setIsLoading(false);
+				return;
+			}
+
 			const result = await updateEvent.mutateAsync({
 				id: event.id,
 				title: formData.get("title") as string,
 				description: formData.get("description") as string,
-				startDate: formData.get("startDate")
-					? new Date(formData.get("startDate") as string)
-					: undefined,
-				endDate: formData.get("endDate")
-					? new Date(formData.get("endDate") as string)
-					: undefined,
+				startDate: startDateTime ? new Date(startDateTime) : undefined,
+				endDate: endDateTime ? new Date(endDateTime) : undefined,
 			});
+
+			toast.success("Event updated successfully");
 			setOpen(false);
 			router.refresh();
 		} catch (error) {
 			console.error("Error updating event:", error);
+			toast.error("Failed to update event");
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	const formatDateForInput = (dateString: string | null) => {
-		if (!dateString) return "";
-		return new Date(dateString).toISOString().slice(0, 16);
+	const handleStartDateChange = (value: string) => {
+		setStartDate(value);
+		if (endDate && value && new Date(value) >= new Date(endDate)) {
+			toast.error("Start time must be before end time");
+		}
+	};
+
+	const handleEndDateChange = (value: string) => {
+		setEndDate(value);
+		if (startDate && value && new Date(startDate) >= new Date(value)) {
+			toast.error("End time must be after start time");
+		}
 	};
 
 	return (
@@ -107,7 +148,8 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 									id="startDate"
 									name="startDate"
 									type="datetime-local"
-									defaultValue={formatDateForInput(event.start_date)}
+									value={startDate}
+									onChange={(e) => handleStartDateChange(e.target.value)}
 								/>
 							</div>
 
@@ -117,7 +159,8 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 									id="endDate"
 									name="endDate"
 									type="datetime-local"
-									defaultValue={formatDateForInput(event.end_date)}
+									value={endDate}
+									onChange={(e) => handleEndDateChange(e.target.value)}
 								/>
 							</div>
 						</div>
@@ -131,7 +174,17 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isLoading}>
+						<Button
+							type="submit"
+							disabled={
+								isLoading ||
+								(typeof startDate === "string" &&
+									typeof endDate === "string" &&
+									startDate !== "" &&
+									endDate !== "" &&
+									new Date(startDate) >= new Date(endDate))
+							}
+						>
 							{isLoading ? "Updating..." : "Update Event"}
 						</Button>
 					</DialogFooter>

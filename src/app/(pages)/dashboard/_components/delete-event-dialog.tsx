@@ -13,6 +13,7 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/trpc/react";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -27,12 +28,14 @@ interface DeleteEventDialogProps {
 }
 
 export function DeleteEventDialog({ event, children }: DeleteEventDialogProps) {
+	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
 
 	const deleteEvent = api.events.deleteEvent.useMutation({
 		onSuccess: () => {
 			toast.success("Event deleted successfully");
+			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
 			setOpen(false);
 			router.refresh();
 		},

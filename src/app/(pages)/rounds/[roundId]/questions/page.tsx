@@ -1,10 +1,10 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { api } from "@/trpc/react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clock, Plus } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SimpleCreateQuestionDialog } from "./_components/simple-create-question-dialog";
 import { SimpleQuestionEditorList } from "./_components/simple-question-editor-list";
@@ -136,18 +136,29 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 		);
 	}
 
-	const formatTime = (minutes: number) => {
-		const hours = Math.floor(minutes / 60);
-		const mins = minutes % 60;
-		if (hours > 0) {
-			return `${hours}h ${mins}m`;
-		}
-		return `${mins}m`;
+	const formatTime = (seconds: number) => {
+		if (seconds < 60) return `${seconds}s`;
+		const minutes = Math.floor(seconds / 60);
+		const remainingSeconds = seconds % 60;
+		return remainingSeconds > 0
+			? `${minutes}m ${remainingSeconds}s`
+			: `${minutes}m`;
 	};
 
-	const roundTimeLimit = round.useEventDuration
+	// Calculate round time limit in seconds for questions
+	const roundTimeMinutes = round.useEventDuration
 		? event.durationMinutes
 		: round.timeLimit || event.durationMinutes;
+	const roundTimeLimitSeconds = (roundTimeMinutes || 60) * 60;
+
+	// Calculate total question time if all questions use custom limits
+	const totalCustomQuestionTime =
+		questions?.reduce((total, question) => {
+			if (question.useRoundDefault) {
+				return total + roundTimeLimitSeconds;
+			}
+			return total + (question.timeLimit || 0);
+		}, 0) || 0;
 
 	if (questionsLoading) {
 		return (
@@ -164,7 +175,8 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 							<div>
 								<h1 className="font-bold text-2xl">{round.title}</h1>
 								<p className="text-muted-foreground">
-									Manage questions • Time limit: {formatTime(roundTimeLimit)}
+									Manage questions • Duration:{" "}
+									{formatTime(roundTimeLimitSeconds)}
 								</p>
 							</div>
 						</div>
@@ -190,10 +202,23 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 								Back to Rounds
 							</Button>
 						</Link>
-						<div>
+						<div className="flex-1">
 							<h1 className="font-bold text-2xl">{round.title}</h1>
 							<p className="text-muted-foreground">
-								Manage questions • Time limit: {formatTime(roundTimeLimit)}
+								Manage questions • Round Duration:{" "}
+								{formatTime(roundTimeLimitSeconds)}
+							</p>
+						</div>
+						<div className="text-right">
+							<div className="flex items-center gap-2 text-sm">
+								<Clock className="h-4 w-4" />
+								<span className="font-medium">
+									{questions?.length || 0} questions
+								</span>
+							</div>
+							<p className="text-muted-foreground text-xs">
+								Time limits in seconds • Max per question:{" "}
+								{formatTime(roundTimeLimitSeconds)}
 							</p>
 						</div>
 					</div>
@@ -201,12 +226,26 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 			</header>
 
 			<main className="container mx-auto px-4 py-8">
+				{roundTimeLimitSeconds === 0 && (
+					<Alert className="mb-6">
+						<AlertCircle className="h-4 w-4" />
+						<AlertDescription>
+							Warning: This round has no defined duration. Questions will use a
+							default time limit.
+						</AlertDescription>
+					</Alert>
+				)}
+
 				<div className="mb-8 flex items-center justify-between">
 					<div>
 						<h2 className="font-bold text-3xl">Questions</h2>
 						<p className="mt-2 text-muted-foreground">
-							Create questions with answer IDs for strict matching. Simple
-							record-keeping system.
+							Create questions with answer IDs for strict matching. Time limits
+							are in seconds.
+						</p>
+						<p className="mt-1 text-muted-foreground text-sm">
+							Each question can use the round duration (
+							{formatTime(roundTimeLimitSeconds)}) or a custom time limit.
 						</p>
 					</div>
 					<SimpleCreateQuestionDialog

@@ -1,6 +1,6 @@
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { participants } from "@/server/db/schema";
-import { asc, eq, gt, max } from "drizzle-orm";
+import { and, asc, eq, gt, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const createParticipantSchema = z.object({
@@ -36,15 +36,25 @@ export const participantsRouter = createTRPCRouter({
 			const { orderIndex, ...participantData } = input;
 
 			// Check if participant already exists for this event
-			const [existingParticipant] = await ctx.db
+			const existingParticipant = await ctx.db
 				.select()
 				.from(participants)
-				.where(eq(participants.email, input.email))
+				.where(
+					and(
+						eq(participants.email, input.email),
+						eq(participants.eventId, input.eventId),
+					),
+				)
 				.limit(1);
 
+			console.log("Existing Participant:", existingParticipant);
+
+			console.log("Input Event ID:", input.eventId);
 			if (
 				existingParticipant &&
-				existingParticipant.eventId === input.eventId
+				existingParticipant.length > 0 &&
+				existingParticipant[0] &&
+				existingParticipant[0].eventId === input.eventId
 			) {
 				throw new Error(
 					"Participant with this email already exists for this event",
@@ -166,7 +176,10 @@ export const participantsRouter = createTRPCRouter({
 				const updatePromises = input.participants.map((participant) =>
 					tx
 						.update(participants)
-						.set({ orderIndex: participant.orderIndex, updatedAt: new Date() })
+						.set({
+							orderIndex: participant.orderIndex,
+							updatedAt: new Date(),
+						})
 						.where(eq(participants.id, participant.id)),
 				);
 
@@ -201,8 +214,6 @@ export const participantsRouter = createTRPCRouter({
 
 			return updatedParticipant;
 		}),
-
-	// BULK - Import multiple participants
 	bulkCreate: publicProcedure
 		.input(
 			z.object({
@@ -216,52 +227,60 @@ export const participantsRouter = createTRPCRouter({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			return ctx.db.transaction(async (tx) => {
-				const createdParticipants = [];
+			const { eventId, participants: inputParticipants } = input;
 
-				for (let i = 0; i < input.participants.length; i++) {
-					const participant = input.participants[i];
+			// Deduplicate by email
+			const unique = Array.from(
+				new Map(inputParticipants.map((p) => [p.email, p])).values(),
+			);
 
-					if (!participant) {
-						continue; // Skip if participant is undefined
-					}
+			if (unique.length === 0) return { success: false, processed: 0 };
 
-					// Check if participant already exists
-					const [existing] = await tx
-						.select()
-						.from(participants)
-						.where(eq(participants.email, participant.email))
-						.limit(1);
+			// Get the current max order index for the event
+			let maxOrder = await ctx.db
+				.select({ max: sql<number>`MAX(${participants.orderIndex})` })
+				.from(participants)
+				.where(sql`${participants.eventId} = ${eventId}`)
+				.then((r) => r[0]?.max ?? -1);
 
-					if (existing && existing.eventId === input.eventId) {
-						continue; // Skip existing participants
-					}
+			// Build the VALUES list
+			const valuesSql = sql.join(
+				unique.map((p, i) => {
+					maxOrder += 1;
+					return sql`(${sql.param(eventId)}, ${sql.param(
+						p.email,
+					)}, ${sql.param(p.name)}, ${sql.param(maxOrder)})`;
+				}),
+				sql`, `,
+			);
 
-					// Get next order index
-					const maxOrder = await tx
-						.select({ maxOrder: max(participants.orderIndex) })
-						.from(participants)
-						.where(eq(participants.eventId, input.eventId))
-						.then((result) => (result[0]?.maxOrder ?? -1) + 1);
+			// Execute UPSERT
+			await ctx.db.execute(sql`
+			INSERT INTO ${participants} (event_id, email, name, order_index)
+			VALUES ${valuesSql}
+			ON CONFLICT (email, event_id)
+			DO UPDATE SET
+				name = EXCLUDED.name,
+				updated_at = NOW()
+		`);
 
-					const [newParticipant] = await tx
-						.insert(participants)
-						.values({
-							eventId: input.eventId,
-							name: participant.name,
-							email: participant.email,
-							orderIndex: maxOrder + i,
-						})
-						.returning();
+			return {
+				success: true,
+				processed: unique.length,
+			};
+		}),
 
-					createdParticipants.push(newParticipant);
-				}
-
-				return {
-					success: true,
-					created: createdParticipants.length,
-					participants: createdParticipants,
-				};
-			});
+	getWithPasswordsByEvent: publicProcedure
+		.input(z.object({ eventId: z.string() }))
+		.query(async ({ ctx, input }) => {
+			return ctx.db
+				.select({
+					id: participants.id,
+					name: participants.name,
+					email: participants.email,
+					password: participants.password, // return password only if stored
+				})
+				.from(participants)
+				.where(eq(participants.eventId, input.eventId));
 		}),
 });

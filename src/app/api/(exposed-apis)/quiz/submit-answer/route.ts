@@ -62,8 +62,7 @@ export async function POST(request: NextRequest) {
 		if (!session || !session.roundId) {
 			return NextResponse.json(
 				{
-					error:
-						"No active session found. Please start a round first.",
+					error: "No active session found. Please start a round first.",
 				},
 				{ status: 404 },
 			);
@@ -85,8 +84,7 @@ export async function POST(request: NextRequest) {
 		if (!question) {
 			return NextResponse.json(
 				{
-					error:
-						`Question "${questionId}" not found in the active round`,
+					error: `Question "${questionId}" not found in the active round`,
 				},
 				{ status: 404 },
 			);
@@ -152,10 +150,7 @@ export async function POST(request: NextRequest) {
 
 		// Auto-start the question timer if it hasn't been started yet
 		let actualQuestionStartTime = session.questionStartedAt;
-		if (
-			!actualQuestionStartTime ||
-			session.currentQuestionId !== question.id
-		) {
+		if (!actualQuestionStartTime || session.currentQuestionId !== question.id) {
 			actualQuestionStartTime = new Date();
 			await db
 				.update(participantSessions)
@@ -178,8 +173,7 @@ export async function POST(request: NextRequest) {
 		if (!currentRound) {
 			return NextResponse.json(
 				{
-					error:
-						"Internal server error: Round not found for the session.",
+					error: "Internal server error: Round not found for the session.",
 				},
 				{ status: 500 },
 			);
@@ -190,9 +184,8 @@ export async function POST(request: NextRequest) {
 				? currentRound.timeLimit
 				: question.timeLimit;
 
-		const isLate = timeLimitSeconds !== null
-			? timeTaken > timeLimitSeconds * 1000
-			: false;
+		const isLate =
+			timeLimitSeconds !== null ? timeTaken > timeLimitSeconds * 1000 : false;
 
 		const isCorrect = question.answerIds.includes(answer as string);
 
@@ -238,9 +231,10 @@ export async function POST(request: NextRequest) {
 			isCorrect,
 		);
 
-		const remainingTime = timeLimitSeconds !== null
-			? Math.max(0, timeLimitSeconds * 1000 - timeTaken)
-			: null;
+		const remainingTime =
+			timeLimitSeconds !== null
+				? Math.max(0, timeLimitSeconds * 1000 - timeTaken)
+				: null;
 
 		return NextResponse.json({
 			message: "Answer submitted successfully",

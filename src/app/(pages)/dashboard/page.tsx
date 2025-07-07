@@ -1,45 +1,72 @@
+"use client";
+
 import { MockModeBanner } from "@/components/mock-mode-banner";
 import { Button } from "@/components/ui/button";
-import { api } from "@/trpc/server";
+import { api } from "@/trpc/react";
 import { Plus } from "lucide-react";
 import { CreateEventDialog } from "./_components/create-event-dialog";
 import { EventCard } from "./_components/event-card";
 import { UserNav } from "./_components/user-nav";
 
-export default async function DashboardPage() {
-	let events: {
-		id: string;
-		title: string;
-		description?: string | null;
-		start_date: string | null; // ISO date string
-		end_date: string | null; // ISO date string
-		is_active: boolean; // true if the event is currently active
-		// add any other fields you need
-	}[] = [];
-	let error = null;
+export default function DashboardPage() {
+	const {
+		data: events,
+		isLoading,
+		error,
+		refetch,
+	} = api.events.getEvents.useQuery(undefined, {
+		refetchInterval: 30000, // Refetch every 30 seconds
+		refetchOnWindowFocus: true,
+		retry: 3,
+	});
 
-	try {
-		const apiEvents = await api.events.getEvents();
-		events = apiEvents.map((event) => ({
-			id: event.id,
-			title: event.title,
-			description: event.description,
-			start_date: event.startDate ? event.startDate.toISOString() : null,
-			end_date: event.endDate ? event.endDate.toISOString() : null,
-			is_active: event.isActive ?? false,
-		}));
-	} catch (err) {
-		error = err instanceof Error ? err.message : "Failed to load events";
-		console.error("Error loading events:", err);
+	if (isLoading) {
+		return (
+			<div className="min-h-screen bg-background">
+				<header className="border-border border-b bg-card shadow-sm">
+					<div className="container mx-auto flex items-center justify-between px-4 py-4">
+						<h1 className="font-bold text-2xl">Quiz Platform</h1>
+						<UserNav />
+					</div>
+				</header>
+				<main className="container mx-auto px-4 py-8">
+					<div className="flex items-center justify-center py-12">
+						<div className="text-center">
+							<div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+							<p className="mt-4 text-muted-foreground">Loading events...</p>
+						</div>
+					</div>
+				</main>
+			</div>
+		);
 	}
 
 	if (error) {
 		return (
-			<div className="container mx-auto py-8">
-				<div className="text-center">
-					<h1 className="font-bold text-2xl text-destructive">Error</h1>
-					<p className="mt-2 text-muted-foreground">{error}</p>
-				</div>
+			<div className="min-h-screen bg-background">
+				<header className="border-border border-b bg-card shadow-sm">
+					<div className="container mx-auto flex items-center justify-between px-4 py-4">
+						<h1 className="font-bold text-2xl">Quiz Platform</h1>
+						<UserNav />
+					</div>
+				</header>
+				<main className="container mx-auto px-4 py-8">
+					<div className="container mx-auto py-8">
+						<div className="text-center">
+							<h1 className="font-bold text-2xl text-destructive">Error</h1>
+							<p className="mt-2 text-muted-foreground">
+								{error.message || "Failed to load events"}
+							</p>
+							<Button
+								onClick={() => refetch()}
+								variant="outline"
+								className="mt-4"
+							>
+								Retry
+							</Button>
+						</div>
+					</div>
+				</main>
 			</div>
 		);
 	}
@@ -84,7 +111,7 @@ export default async function DashboardPage() {
 					</CreateEventDialog>
 				</div>
 
-				{events.length === 0 ? (
+				{!events || events.length === 0 ? (
 					<div className="py-12 text-center">
 						<div className="mx-auto max-w-md">
 							<h3 className="mb-2 font-semibold text-xl">No events yet</h3>
@@ -103,7 +130,20 @@ export default async function DashboardPage() {
 				) : (
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 						{events.map((event) => (
-							<EventCard key={event.id} event={event} participantCount={0} />
+							<EventCard
+								key={event.id}
+								event={{
+									id: event.id,
+									title: event.title,
+									description: event.description,
+									start_date: event.startDate
+										? event.startDate.toISOString()
+										: null,
+									end_date: event.endDate ? event.endDate.toISOString() : null,
+									is_active: event.isActive ?? false,
+								}}
+								participantCount={event.participantCount || 0}
+							/>
 						))}
 					</div>
 				)}

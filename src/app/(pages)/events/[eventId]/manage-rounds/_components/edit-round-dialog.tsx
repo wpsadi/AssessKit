@@ -15,28 +15,37 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { AppRouter } from "@/server/api/root";
 import { api } from "@/trpc/react";
-import type { inferRouterOutputs } from "@trpc/server";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type RouterOutput = inferRouterOutputs<AppRouter>;
-type Round = RouterOutput["rounds"]["getPublicRounds"][number];
+interface Round {
+	id: string;
+	title: string;
+	description: string | null;
+	timeLimit: number | null;
+	useEventDuration: boolean;
+	eventId: string;
+	orderIndex: number;
+	isActive: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
 
 interface EditRoundDialogProps {
 	round: Round;
 	onSuccess: () => void;
 	children: React.ReactNode;
+	totalEventDuration: number;
 }
 
 export function EditRoundDialog({
 	round,
 	onSuccess,
 	children,
+	totalEventDuration,
 }: EditRoundDialogProps) {
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -45,23 +54,28 @@ export function EditRoundDialog({
 	const [useEventDuration, setUseEventDuration] = useState(
 		round.useEventDuration,
 	);
-	const [customTimeLimit, setCustomTimeLimit] = useState(round.timeLimit || 60);
+	const [customTimeLimit, setCustomTimeLimit] = useState(round.timeLimit || 30);
+	const [errors, setErrors] = useState<{ title?: string; timeLimit?: string }>(
+		{},
+	);
+
 	const router = useRouter();
 
-	const { data: events } = api.events.getEvents.useQuery(undefined, {
-		refetchInterval: 1000 * 10,
-	});
-	const event = events?.find((e) => e.id === round.eventId);
+	const allRounds = api.rounds.getPublicRounds.useQuery(
+		{ eventId: round.eventId },
+		{ enabled: !!round.eventId },
+	);
 
 	const updateRoundMutation = api.rounds.updateRound.useMutation({
 		onSuccess: () => {
-			toast.success("Round updated successfully!");
+			toast.success("Round updated successfully");
 			onSuccess();
 			setOpen(false);
 			router.refresh();
 		},
 		onError: (error) => {
-			toast.error(`Error updating round: ${error.message}`);
+			console.error("Error updating round:", error);
+			toast.error(error.message || "Failed to update round");
 		},
 	});
 
@@ -70,137 +84,155 @@ export function EditRoundDialog({
 			setTitle(round.title);
 			setDescription(round.description || "");
 			setUseEventDuration(round.useEventDuration);
-			setCustomTimeLimit(round.timeLimit || 60);
+			setCustomTimeLimit(round.timeLimit || 30);
+			setErrors({});
 		}
 	}, [open, round]);
 
+	const otherRoundsDuration =
+		allRounds.data?.reduce((sum, r) => {
+			if (r.id === round.id) return sum;
+			return sum + (r.useEventDuration ? totalEventDuration : r.timeLimit || 0);
+		}, 0) || 0;
+
+	const proposedDuration = useEventDuration
+		? totalEventDuration
+		: customTimeLimit;
+	const totalAfterEdit = proposedDuration + otherRoundsDuration;
+	const maxAvailable = totalEventDuration - otherRoundsDuration;
+	const limitExceeded = totalAfterEdit > totalEventDuration;
+
+	const validateForm = () => {
+		const newErrors: { title?: string; timeLimit?: string } = {};
+
+		if (!title.trim()) {
+			newErrors.title = "Title is required";
+		}
+
+		if (!useEventDuration) {
+			if (customTimeLimit < 1) {
+				newErrors.timeLimit = "Duration must be at least 1 minute";
+			} else if (limitExceeded) {
+				newErrors.timeLimit = `You can use at most ${maxAvailable} minute(s)`;
+			}
+		} else {
+			if (limitExceeded) {
+				newErrors.timeLimit = `Using full event duration exceeds limit. You can use at most ${maxAvailable} minute(s)`;
+			}
+		}
+
+		setErrors(newErrors);
+		return Object.keys(newErrors).length === 0;
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+
+		if (!validateForm()) return;
+
 		setIsLoading(true);
 		try {
 			await updateRoundMutation.mutateAsync({
 				id: round.id,
-				title,
-				description,
+				title: title.trim(),
+				description: description.trim() || undefined,
 				timeLimit: useEventDuration ? undefined : customTimeLimit,
 				useEventDuration,
 			});
-		} catch (error) {
-			console.error("Error updating round:", error);
+		} catch {
+			// error already handled
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	const formatTime = (minutes: number) => {
-		const hours = Math.floor(minutes / 60);
-		const mins = minutes % 60;
-		if (hours > 0) {
-			return `${hours}h ${mins}m`;
-		}
-		return `${mins}m`;
-	};
-
-	const effectiveTimeLimit = useEventDuration
-		? event?.durationMinutes || 0
-		: customTimeLimit;
-
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>{children}</DialogTrigger>
 			<DialogContent className="sm:max-w-[500px]">
-				<form onSubmit={handleSubmit}>
-					<DialogHeader>
-						<DialogTitle>Edit Round</DialogTitle>
-						<DialogDescription>
-							Update the round details below.
-						</DialogDescription>
-					</DialogHeader>
+				<DialogHeader>
+					<DialogTitle>Edit Round</DialogTitle>
+					<DialogDescription>Update the round details below.</DialogDescription>
+				</DialogHeader>
 
-					<div className="grid gap-4 py-4">
-						<div className="grid gap-2">
-							<Label htmlFor="title">Round Title</Label>
-							<Input
-								id="title"
-								value={title}
-								onChange={(e) => setTitle(e.target.value)}
-								placeholder="Enter round title"
-								required
+				{totalEventDuration > 0 && (
+					<div className="mb-4 text-muted-foreground text-sm">
+						<p>Total event duration: {totalEventDuration} min</p>
+						<p>Other rounds total: {otherRoundsDuration} min</p>
+						<p>Max allowed for this round: {maxAvailable} min</p>
+					</div>
+				)}
+
+				<form onSubmit={handleSubmit} className="space-y-4">
+					<div className="space-y-2">
+						<Label htmlFor="title">Round Title *</Label>
+						<Input
+							id="title"
+							value={title}
+							onChange={(e) => setTitle(e.target.value)}
+							className={errors.title ? "border-destructive" : ""}
+						/>
+						{errors.title && (
+							<p className="text-destructive text-sm">{errors.title}</p>
+						)}
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="description">Description (optional)</Label>
+						<Textarea
+							id="description"
+							value={description}
+							onChange={(e) => setDescription(e.target.value)}
+							rows={3}
+						/>
+					</div>
+
+					<div className="space-y-2">
+						<Label>Duration</Label>
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								checked={useEventDuration}
+								onCheckedChange={(checked) => setUseEventDuration(!!checked)}
 							/>
+							<Label className="text-sm">
+								Use full event duration ({totalEventDuration} min)
+							</Label>
 						</div>
 
-						<div className="grid gap-2">
-							<Label htmlFor="description">Description</Label>
-							<Textarea
-								id="description"
-								value={description}
-								onChange={(e) => setDescription(e.target.value)}
-								placeholder="Enter round description (optional)"
-								rows={3}
-							/>
-						</div>
-
-						{event && (
-							<div className="grid gap-4">
-								<Label>Time Limit</Label>
-
-								<div className="space-y-4">
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											checked={useEventDuration}
-											onCheckedChange={(checked) =>
-												setUseEventDuration(Boolean(checked))
-											}
-										/>
-										<Label className="text-sm">
-											Use event duration ({formatTime(event.durationMinutes)})
-										</Label>
-									</div>
-
-									{!useEventDuration && (
-										<div className="space-y-2">
-											<Label htmlFor="customTimeLimit">
-												Custom Time Limit (minutes)
-											</Label>
-											<Input
-												id="customTimeLimit"
-												type="number"
-												min="1"
-												max={event.durationMinutes}
-												value={customTimeLimit}
-												onChange={(e) =>
-													setCustomTimeLimit(Number(e.target.value))
-												}
-												placeholder="Enter time in minutes"
-											/>
-											<p className="text-gray-500 text-xs">
-												Maximum: {formatTime(event.durationMinutes)} (event
-												duration)
-											</p>
-										</div>
+						{!useEventDuration && (
+							<div className="space-y-2">
+								<Label htmlFor="customTimeLimit">
+									Time limit (minutes) *
+									{maxAvailable > 0 && (
+										<span className="ml-2 text-muted-foreground text-xs">
+											(Max: {maxAvailable} min)
+										</span>
 									)}
-
-									<div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-										<p className="text-blue-700 text-sm">
-											<strong>Effective Time Limit:</strong>{" "}
-											{formatTime(effectiveTimeLimit)}
-										</p>
-									</div>
-								</div>
-
-								{!useEventDuration &&
-									customTimeLimit > event.durationMinutes && (
-										<Alert variant="destructive">
-											<AlertTriangle className="h-4 w-4" />
-											<AlertDescription>
-												Time limit cannot exceed event duration (
-												{formatTime(event.durationMinutes)})
-											</AlertDescription>
-										</Alert>
-									)}
+								</Label>
+								<Input
+									id="customTimeLimit"
+									type="number"
+									min={1}
+									max={maxAvailable}
+									value={customTimeLimit}
+									onChange={(e) => setCustomTimeLimit(Number(e.target.value))}
+									className={errors.timeLimit ? "border-destructive" : ""}
+								/>
+								{errors.timeLimit && (
+									<p className="text-destructive text-sm">{errors.timeLimit}</p>
+								)}
 							</div>
 						)}
 					</div>
+
+					{limitExceeded && (
+						<Alert variant="destructive">
+							<AlertTriangle className="h-4 w-4" />
+							<AlertDescription>
+								This round exceeds the total event time limit.
+							</AlertDescription>
+						</Alert>
+					)}
 
 					<DialogFooter>
 						<Button
@@ -213,11 +245,7 @@ export function EditRoundDialog({
 						<Button
 							type="submit"
 							disabled={
-								isLoading ||
-								updateRoundMutation.isPending ||
-								(!useEventDuration &&
-									event &&
-									customTimeLimit > event.durationMinutes)
+								isLoading || updateRoundMutation.isPending || limitExceeded
 							}
 						>
 							{isLoading || updateRoundMutation.isPending

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ interface CreateEventDialogProps {
 }
 
 export function CreateEventDialog({ children }: CreateEventDialogProps) {
+	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
 	const toastId = useId();
@@ -35,6 +37,7 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
 		},
 		onSuccess: (data) => {
 			toast.success("Event created successfully!", { id: toastId });
+			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
 			setOpen(false);
 			router.refresh();
 		},
@@ -46,6 +49,18 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
 	const handleSubmit = async (formData: FormData) => {
 		const startDateStr = formData.get("startDate") as string;
 		const endDateStr = formData.get("endDate") as string;
+
+		// Validation: start date should not be after end date
+		if (startDateStr && endDateStr) {
+			const start = new Date(startDateStr);
+			const end = new Date(endDateStr);
+			if (start > end) {
+				toast.error("Start date/time cannot be after end date/time.", {
+					id: toastId,
+				});
+				return;
+			}
+		}
 
 		const eventData = {
 			title: formData.get("title") as string,

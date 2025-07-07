@@ -1,7 +1,5 @@
 "use client";
 
-import type React from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +15,9 @@ import type { Round } from "@/lib/types";
 import { api } from "@/trpc/react";
 import { Clock, GripVertical, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { DeleteRoundDialog } from "./delete-round-dialog";
 import { EditRoundDialog } from "./edit-round-dialog";
 
@@ -25,115 +25,183 @@ interface RoundSortableListProps {
 	rounds: Round[];
 	eventId: string;
 	onUpdate?: () => void;
+	totalEventDuration: number;
+	usedDuration: number;
+	remainingDuration: number;
 }
 
 export function RoundSortableList({
 	rounds: initialRounds,
 	eventId,
 	onUpdate,
+	totalEventDuration,
+	usedDuration,
+	remainingDuration,
 }: RoundSortableListProps) {
-	const [rounds, setRounds] = useState(initialRounds);
+	const [rounds, setRounds] = useState<Round[]>(initialRounds);
 	const [hasChanges, setHasChanges] = useState(false);
+	const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+	const [isSaving, setIsSaving] = useState(false);
+	const skipNextSyncRef = useRef(false);
 
 	const reorderRoundsMutation = api.rounds.reorderRounds.useMutation({
 		onSuccess: () => {
+			// Mark that we should skip the next sync from props
+			skipNextSyncRef.current = true;
+			setIsSaving(false);
 			setHasChanges(false);
-			onUpdate?.();
+			toast.success("Round order updated successfully");
+
+			// Delay the refresh to ensure server has processed changes
+			setTimeout(() => {
+				onUpdate?.();
+			}, 500);
 		},
 		onError: (error) => {
 			console.error("Error updating round order:", error);
+			toast.error(error.message || "Failed to update round order");
+			// Revert to original state on error
 			setRounds(initialRounds);
 			setHasChanges(false);
+			setIsSaving(false);
 		},
 	});
 
+	// Sync local state with props when they change, but only if not skipping
 	useEffect(() => {
-		setRounds(initialRounds);
-		setHasChanges(false);
-	}, [initialRounds]);
+		if (skipNextSyncRef.current) {
+			skipNextSyncRef.current = false;
+			return;
+		}
+
+		// Only update if there are no pending changes
+		if (!hasChanges) {
+			setRounds(initialRounds);
+		}
+	}, [initialRounds, hasChanges]);
 
 	const handleDragStart = (e: React.DragEvent, index: number) => {
+		setDraggedIndex(index);
 		e.dataTransfer.setData("text/plain", index.toString());
+		e.dataTransfer.effectAllowed = "move";
+	};
+
+	const handleDragEnd = () => {
+		setDraggedIndex(null);
 	};
 
 	const handleDragOver = (e: React.DragEvent) => {
 		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
 	};
 
 	const handleDrop = (e: React.DragEvent, dropIndex: number) => {
 		e.preventDefault();
 		const dragIndex = Number.parseInt(e.dataTransfer.getData("text/plain"));
-		if (dragIndex === dropIndex) return;
+
+		// Validate indices
+		if (
+			Number.isNaN(dragIndex) ||
+			dragIndex === dropIndex ||
+			dragIndex < 0 ||
+			dragIndex >= rounds.length ||
+			dropIndex < 0 ||
+			dropIndex >= rounds.length
+		) {
+			setDraggedIndex(null);
+			return;
+		}
 
 		const newRounds = [...rounds];
 		const [draggedRound] = newRounds.splice(dragIndex, 1);
-		if (draggedRound) {
-			newRounds.splice(dropIndex, 0, draggedRound);
+
+		if (!draggedRound) {
+			setDraggedIndex(null);
+			return;
 		}
 
-		// Update order indices (zero-based for backend)
-		const updatedRounds = newRounds.map((round, index) => ({
+		newRounds.splice(dropIndex, 0, draggedRound);
+
+		// Update order indices to match new positions
+		const reorderedRounds = newRounds.map((round, index) => ({
 			...round,
 			orderIndex: index,
 		}));
 
-		setRounds(updatedRounds);
+		setRounds(reorderedRounds);
 		setHasChanges(true);
+		setDraggedIndex(null);
 	};
 
 	const handleSaveChanges = async () => {
+		if (!hasChanges || isSaving) {
+			return;
+		}
+
 		try {
+			setIsSaving(true);
+
 			const orderUpdates = rounds.map((round, index) => ({
 				id: round.id,
 				orderIndex: index,
 			}));
+
 			await reorderRoundsMutation.mutateAsync({
 				eventId,
 				rounds: orderUpdates,
 			});
+
+			// Note: We don't reset state here because the mutation's onSuccess will handle it
 		} catch (error) {
-			// Error handled in mutation
+			// Error is handled by the mutation's onError callback
+			console.error("Failed to save round order:", error);
 		}
 	};
 
 	const handleDiscardChanges = () => {
 		setRounds(initialRounds);
 		setHasChanges(false);
+		toast.info("Changes discarded, order reverted to original");
 	};
 
 	const formatTime = (minutes: number) => {
+		if (minutes <= 0) return "0m";
 		const hours = Math.floor(minutes / 60);
 		const mins = minutes % 60;
 		if (hours > 0) {
-			return `${hours}h ${mins}m`;
+			return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 		}
 		return `${mins}m`;
+	};
+
+	const handleRoundUpdate = () => {
+		// When a round is updated, refresh the data
+		onUpdate?.();
 	};
 
 	return (
 		<>
 			<div className="space-y-4">
-				{rounds.map((round, index) => (
+				{rounds.map((round, index: number) => (
 					<Card
 						key={round.id}
-						className="cursor-move transition-shadow hover:shadow-md"
+						className={`cursor-move transition-all duration-200 hover:shadow-md ${
+							draggedIndex === index ? "scale-95 opacity-50" : ""
+						}`}
 						draggable
 						onDragStart={(e) => handleDragStart(e, index)}
+						onDragEnd={handleDragEnd}
 						onDragOver={handleDragOver}
 						onDrop={(e) => handleDrop(e, index)}
 					>
 						<CardHeader>
 							<div className="flex items-start gap-4">
-								<GripVertical className="mt-1 h-5 w-5 flex-shrink-0 text-gray-400" />
+								<GripVertical className="mt-1 h-5 w-5 cursor-grab text-gray-400 active:cursor-grabbing" />
 								<div className="flex-1">
 									<div className="flex items-start justify-between">
 										<div>
 											<CardTitle className="text-xl">
-												Round{" "}
-												{typeof round.orderIndex === "number"
-													? round.orderIndex + 1
-													: index + 1}
-												: {round.title}
+												Round {index + 1}: {round.title}
 											</CardTitle>
 											<CardDescription className="mt-1">
 												{round.description || "No description provided"}
@@ -158,10 +226,10 @@ export function RoundSortableList({
 							<div className="flex items-center text-gray-600 text-sm">
 								<Clock className="mr-2 h-4 w-4" />
 								<span>
-									Time Limit:{" "}
+									Duration:{" "}
 									{round.useEventDuration
-										? "Event Duration"
-										: formatTime(round.timeLimit || 60)}
+										? `${formatTime(totalEventDuration)} (Full Event)`
+										: formatTime(round.timeLimit || 0)}
 								</span>
 							</div>
 						</CardContent>
@@ -187,7 +255,8 @@ export function RoundSortableList({
 										timeLimit: round.timeLimit ?? null,
 										useEventDuration: round.useEventDuration ?? false,
 									}}
-									onSuccess={onUpdate ? () => onUpdate() : () => {}}
+									onSuccess={handleRoundUpdate}
+									totalEventDuration={totalEventDuration}
 								>
 									<Button variant="ghost" size="sm">
 										Edit
@@ -213,7 +282,7 @@ export function RoundSortableList({
 				<FloatingSaveBar
 					onSave={handleSaveChanges}
 					onDiscard={handleDiscardChanges}
-					isSaving={reorderRoundsMutation.isPending}
+					isSaving={isSaving || reorderRoundsMutation.isPending}
 				/>
 			)}
 		</>

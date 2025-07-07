@@ -1,6 +1,5 @@
 "use client";
 
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { api } from "@/trpc/react";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useState } from "react";
 
 export function UserNav() {
@@ -36,11 +35,11 @@ export function UserNav() {
 	if (user.isLoading) {
 		return (
 			<div className="flex items-center gap-2">
-				<ThemeToggle
+				{/* <ThemeToggle
 					lightIcon={<Sun className="size-4" />}
 					darkIcon={<Moon className="size-4" />}
 				/>
-				<div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+				<div className="h-8 w-8 animate-pulse rounded-full bg-muted" /> */}
 			</div>
 		);
 	}
@@ -48,10 +47,10 @@ export function UserNav() {
 	if (!user.data) {
 		return (
 			<div className="flex items-center gap-2">
-				<ThemeToggle
+				{/* <ThemeToggle
 					lightIcon={<Sun className="size-4" />}
 					darkIcon={<Moon className="size-4" />}
-				/>
+				/> */}
 			</div>
 		);
 	}
@@ -59,10 +58,10 @@ export function UserNav() {
 	return (
 		<div className="flex items-center gap-2">
 			{/* 🌗 Theme switcher */}
-			<ThemeToggle
+			{/* <ThemeToggle
 				lightIcon={<Sun className="size-4" />}
 				darkIcon={<Moon className="size-4" />}
-			/>
+			/> */}
 
 			{/* 👤 User dropdown */}
 			<DropdownMenu>

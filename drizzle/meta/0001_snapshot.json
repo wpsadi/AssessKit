@@ -1,6 +1,6 @@
 {
-	"id": "c93ea4b9-2e42-47bd-acfe-c9356ed47b9b",
-	"prevId": "295615fa-fc33-447d-8a14-993ed2255ccd",
+	"id": "b9da7b6e-1753-4e44-aa26-f322ecd3b20a",
+	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -317,7 +317,13 @@
 				}
 			},
 			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
+			"uniqueConstraints": {
+				"participants_event_id_email_unique": {
+					"name": "participants_event_id_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["event_id", "email"]
+				}
+			},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false
@@ -397,8 +403,8 @@
 					"primaryKey": false,
 					"notNull": true
 				},
-				"question_text": {
-					"name": "question_text",
+				"question_id": {
+					"name": "question_id",
 					"type": "text",
 					"primaryKey": false,
 					"notNull": true
@@ -471,7 +477,13 @@
 				}
 			},
 			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
+			"uniqueConstraints": {
+				"questions_round_id_question_id_unique": {
+					"name": "questions_round_id_question_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["round_id", "question_id"]
+				}
+			},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false
@@ -771,7 +783,13 @@
 				}
 			},
 			"compositePrimaryKeys": {},
-			"uniqueConstraints": {},
+			"uniqueConstraints": {
+				"scores_participant_id_round_id_unique": {
+					"name": "scores_participant_id_round_id_unique",
+					"nullsNotDistinct": false,
+					"columns": ["participant_id", "round_id"]
+				}
+			},
 			"policies": {},
 			"checkConstraints": {},
 			"isRLSEnabled": false

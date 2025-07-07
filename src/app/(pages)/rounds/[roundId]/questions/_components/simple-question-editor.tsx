@@ -61,15 +61,19 @@ export function SimpleQuestionEditor({
 	const [customTimeLimit, setCustomTimeLimit] = useState(
 		question.timeLimit || 60,
 	);
+	const [errors, setErrors] = useState<{
+		answerIds?: string;
+		timeLimit?: string;
+	}>({});
+
 	const router = useRouter();
 
-	// Generate stable keys for answer inputs - fix the dependency
-	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+	// Generate stable keys for answer inputs
 	const answerKeys = useMemo(() => {
 		return answerIds.map(
 			(_, index) => `answer-${question.id}-${index}-${Math.random()}`,
 		);
-	}, [answerIds.length, question.id]);
+	}, [answerIds.map, question.id]);
 
 	// Check for duplicate answer IDs
 	const answerValues = answerIds
@@ -84,48 +88,66 @@ export function SimpleQuestionEditor({
 		onSuccess: (updatedQuestion) => {
 			setIsEditing(false);
 			toast.success("Question updated successfully");
-			// Pass the updated question back to parent
 			if (updatedQuestion) {
 				onUpdate?.(updatedQuestion);
 			}
 		},
 		onError: (error) => {
 			console.error("Error updating question:", error);
-			toast.error("Failed to update question");
+			toast.error(error.message || "Failed to update question");
 		},
 	});
 
-	// Calculate time constraints
+	// Calculate time constraints - convert round minutes to seconds
 	const roundTimeMinutes = round.useEventDuration
 		? event.durationMinutes
 		: round.timeLimit || event.durationMinutes;
-	const maxQuestionTimeSeconds = (roundTimeMinutes || 60) * 60;
+	const maxQuestionTimeSeconds = (roundTimeMinutes || 60) * 60; // Convert to seconds
 	const effectiveTimeLimit = useRoundDefault
-		? (roundTimeMinutes || 60) * 60
+		? maxQuestionTimeSeconds
 		: customTimeLimit;
 
+	const validateForm = () => {
+		const newErrors: typeof errors = {};
+
+		// Validate answer IDs
+		const validAnswerIds = answerIds.filter((id) => id.trim());
+		if (validAnswerIds.length === 0) {
+			newErrors.answerIds = "At least one answer ID is required";
+		} else if (hasDuplicates) {
+			newErrors.answerIds = `Duplicate answer IDs found: ${duplicateIds.join(", ")}`;
+		}
+
+		// Validate time limit
+		if (!useRoundDefault) {
+			if (customTimeLimit < 10) {
+				newErrors.timeLimit = "Time limit must be at least 10 seconds";
+			} else if (customTimeLimit > maxQuestionTimeSeconds) {
+				newErrors.timeLimit = `Time limit cannot exceed ${formatTime(maxQuestionTimeSeconds)} (round duration)`;
+			}
+		}
+
+		setErrors(newErrors);
+		return Object.keys(newErrors).length === 0;
+	};
+
 	const handleSave = async (formData: FormData) => {
+		if (!validateForm()) {
+			return;
+		}
+
 		try {
-			const questionId = formData.get("questionId") as string;
-			const positivePoints = Number.parseInt(
-				formData.get("positivePoints") as string,
-			);
+			const questionId = (formData.get("questionId") as string).trim();
+			const positivePoints =
+				Number.parseInt(formData.get("positivePoints") as string) || 1;
 			const negativePoints =
 				Number.parseInt(formData.get("negativePoints") as string) || 0;
 
 			const filteredAnswerIds = answerIds.filter((id) => id.trim());
 
-			// Check for duplicates before submitting
-			if (new Set(filteredAnswerIds).size !== filteredAnswerIds.length) {
-				toast.error(
-					"Duplicate answer IDs found. Each answer ID must be unique.",
-				);
-				return;
-			}
-
 			await updateQuestion.mutateAsync({
 				id: question.id,
-				questionId: questionId,
+				questionId,
 				positivePoints,
 				negativePoints,
 				answerIds: filteredAnswerIds,
@@ -152,12 +174,12 @@ export function SimpleQuestionEditor({
 	};
 
 	const formatTime = (seconds: number) => {
+		if (seconds < 60) return `${seconds}s`;
 		const minutes = Math.floor(seconds / 60);
-		const secs = seconds % 60;
-		if (minutes > 0) {
-			return `${minutes}m ${secs}s`;
-		}
-		return `${secs}s`;
+		const remainingSeconds = seconds % 60;
+		return remainingSeconds > 0
+			? `${minutes}m ${remainingSeconds}s`
+			: `${minutes}m`;
 	};
 
 	const renderQuestionPreview = () => (
@@ -174,6 +196,11 @@ export function SimpleQuestionEditor({
 								{question.negativePoints < 0 && (
 									<Badge variant="destructive" className="text-xs">
 										Penalty
+									</Badge>
+								)}
+								{question.useRoundDefault && (
+									<Badge variant="outline" className="text-xs">
+										Round Default
 									</Badge>
 								)}
 							</div>
@@ -215,7 +242,7 @@ export function SimpleQuestionEditor({
 						<Clock className="h-4 w-4" />
 						<span>
 							{question.useRoundDefault
-								? `${formatTime((roundTimeMinutes || 60) * 60)} (round default)`
+								? `${formatTime(maxQuestionTimeSeconds)} (round default)`
 								: `${formatTime(question.timeLimit || 60)}`}
 						</span>
 					</div>
@@ -272,12 +299,12 @@ export function SimpleQuestionEditor({
 
 							<div className="grid gap-6">
 								<div className="grid gap-2">
-									<Label htmlFor="questionId">Question ID</Label>
+									<Label htmlFor="questionId">Question ID *</Label>
 									<Textarea
 										id="questionId"
 										name="questionId"
 										defaultValue={question.questionId}
-										placeholder="Enter your question ID"
+										placeholder="Enter your question ID or text"
 										rows={3}
 										required
 										disabled={updateQuestion.isPending}
@@ -285,7 +312,7 @@ export function SimpleQuestionEditor({
 								</div>
 
 								<div className="grid gap-2">
-									<Label>Answer IDs</Label>
+									<Label>Answer IDs *</Label>
 									<div className="space-y-2">
 										{answerIds.map((id, idx) => {
 											const isDuplicate =
@@ -301,7 +328,7 @@ export function SimpleQuestionEditor({
 															updateAnswerId(idx, e.target.value)
 														}
 														placeholder={`Answer ID ${idx + 1}`}
-														className={`flex-1 ${isDuplicate ? "border-red-500 focus:border-red-500" : ""}`}
+														className={`flex-1 ${isDuplicate ? "border-destructive" : ""}`}
 														disabled={updateQuestion.isPending}
 													/>
 													{answerIds.length > 1 && (
@@ -323,25 +350,20 @@ export function SimpleQuestionEditor({
 											variant="outline"
 											size="sm"
 											onClick={addAnswerId}
-											className="w-full"
+											className="w-full bg-transparent"
 											disabled={updateQuestion.isPending}
 										>
 											<Plus className="mr-2 h-4 w-4" />
 											Add Answer ID
 										</Button>
 									</div>
-									<p className="text-gray-500 text-xs">
+									<p className="text-muted-foreground text-xs">
 										System will do strict matching with participant answers
 									</p>
-
-									{hasDuplicates && (
-										<Alert variant="destructive">
-											<AlertTriangle className="h-4 w-4" />
-											<AlertDescription>
-												Duplicate answer IDs found: {duplicateIds.join(", ")}.
-												Each answer ID must be unique.
-											</AlertDescription>
-										</Alert>
+									{errors.answerIds && (
+										<p className="text-destructive text-sm">
+											{errors.answerIds}
+										</p>
 									)}
 								</div>
 
@@ -353,7 +375,7 @@ export function SimpleQuestionEditor({
 											name="positivePoints"
 											type="number"
 											min="1"
-											max="20"
+											max="100"
 											defaultValue={question.positivePoints}
 											required
 											disabled={updateQuestion.isPending}
@@ -367,18 +389,18 @@ export function SimpleQuestionEditor({
 											name="negativePoints"
 											type="number"
 											max="0"
-											min="-20"
+											min="-100"
 											defaultValue={question.negativePoints}
 											placeholder="0 for no penalty"
 											disabled={updateQuestion.isPending}
 										/>
-										<p className="text-gray-500 text-xs">
+										<p className="text-muted-foreground text-xs">
 											Enter negative value or 0
 										</p>
 									</div>
 								</div>
 
-								<div className="grid gap-2">
+								<div className="grid gap-4">
 									<Label>Time Limit</Label>
 									<div className="space-y-3">
 										<div className="flex items-center space-x-2">
@@ -390,8 +412,8 @@ export function SimpleQuestionEditor({
 												disabled={updateQuestion.isPending}
 											/>
 											<Label className="text-sm">
-												Use round default (
-												{formatTime((roundTimeMinutes || 60) * 60)})
+												Use round duration ({formatTime(maxQuestionTimeSeconds)}
+												)
 											</Label>
 										</div>
 
@@ -403,26 +425,42 @@ export function SimpleQuestionEditor({
 													max={maxQuestionTimeSeconds}
 													value={customTimeLimit}
 													onChange={(e) =>
-														setCustomTimeLimit(Number(e.target.value))
+														setCustomTimeLimit(
+															Math.max(10, Number(e.target.value)),
+														)
 													}
 													placeholder="Time in seconds"
 													disabled={updateQuestion.isPending}
+													className={
+														errors.timeLimit ? "border-destructive" : ""
+													}
 												/>
-												<p className="text-gray-500 text-xs">
-													Max: {formatTime(maxQuestionTimeSeconds)} (round
-													limit)
+												<p className="text-muted-foreground text-xs">
+													Range: 10 seconds to{" "}
+													{formatTime(maxQuestionTimeSeconds)} (round duration)
 												</p>
+												{errors.timeLimit && (
+													<p className="text-destructive text-sm">
+														{errors.timeLimit}
+													</p>
+												)}
 											</div>
 										)}
+
+										<div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+											<p className="text-blue-700 text-sm">
+												<strong>Effective Time Limit:</strong>{" "}
+												{formatTime(effectiveTimeLimit)}
+											</p>
+										</div>
 									</div>
 								</div>
 
-								{effectiveTimeLimit > maxQuestionTimeSeconds && (
+								{Object.keys(errors).length > 0 && (
 									<Alert variant="destructive">
 										<AlertTriangle className="h-4 w-4" />
 										<AlertDescription>
-											Time limit exceeds round maximum (
-											{formatTime(maxQuestionTimeSeconds)})
+											Please fix the errors above before saving.
 										</AlertDescription>
 									</Alert>
 								)}
@@ -435,7 +473,10 @@ export function SimpleQuestionEditor({
 					<Button
 						type="button"
 						variant="outline"
-						onClick={() => setIsEditing(false)}
+						onClick={() => {
+							setIsEditing(false);
+							setErrors({});
+						}}
 						disabled={updateQuestion.isPending}
 					>
 						<X className="mr-2 h-4 w-4" />
@@ -444,10 +485,9 @@ export function SimpleQuestionEditor({
 					<Button
 						type="submit"
 						disabled={
-							updateQuestion.isPending ||
-							effectiveTimeLimit > maxQuestionTimeSeconds ||
-							hasDuplicates
+							updateQuestion.isPending || Object.keys(errors).length > 0
 						}
+						onClick={() => validateForm()}
 					>
 						{updateQuestion.isPending ? (
 							<>
