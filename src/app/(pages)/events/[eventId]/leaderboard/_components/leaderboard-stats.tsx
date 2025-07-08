@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, TrendingUp, Trophy, Users } from "lucide-react";
+import { CheckCircle, Target, TrendingUp, Trophy, Users } from "lucide-react";
 
 interface LeaderboardStatsProps {
 	stats: {
@@ -7,6 +7,9 @@ interface LeaderboardStatsProps {
 		averageScore: number;
 		highestScore: number;
 		completionRate: number;
+		overallAccuracy?: number;
+		totalSessions?: number;
+		completedSessions?: number;
 	};
 }
 
@@ -22,6 +25,11 @@ export function LeaderboardStats({ stats }: LeaderboardStatsProps) {
 				</CardHeader>
 				<CardContent>
 					<div className="font-bold text-2xl">{stats.totalParticipants}</div>
+					{stats.totalSessions && (
+						<p className="text-gray-600 text-xs">
+							{stats.totalSessions} sessions
+						</p>
+					)}
 				</CardContent>
 			</Card>
 
@@ -51,6 +59,21 @@ export function LeaderboardStats({ stats }: LeaderboardStatsProps) {
 				</CardContent>
 			</Card>
 
+			{stats.overallAccuracy !== undefined && (
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="flex items-center gap-2 font-medium text-sm">
+							<Target className="h-4 w-4" />
+							Overall Accuracy
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="font-bold text-2xl">{stats.overallAccuracy}%</div>
+						<p className="text-gray-600 text-xs">correct answers</p>
+					</CardContent>
+				</Card>
+			)}
+
 			<Card>
 				<CardHeader className="pb-2">
 					<CardTitle className="flex items-center gap-2 font-medium text-sm">
@@ -60,7 +83,11 @@ export function LeaderboardStats({ stats }: LeaderboardStatsProps) {
 				</CardHeader>
 				<CardContent>
 					<div className="font-bold text-2xl">{stats.completionRate}%</div>
-					<p className="text-gray-600 text-xs">completed</p>
+					{stats.completedSessions && stats.totalSessions && (
+						<p className="text-gray-600 text-xs">
+							{stats.completedSessions}/{stats.totalSessions} completed
+						</p>
+					)}
 				</CardContent>
 			</Card>
 		</div>

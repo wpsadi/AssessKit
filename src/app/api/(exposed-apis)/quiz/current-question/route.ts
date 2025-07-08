@@ -1,11 +1,5 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
-import { db } from "@/server/db";
-import {
-	participantSessions,
-	questions,
-	responses,
-	rounds,
-} from "@/server/db/schema";
+import { createClient } from "@/utils/supabase/service";
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -30,17 +24,21 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const { participantId } = payload;
+		const { participantId, eventId } = payload;
+
+		const supabase = createClient();
 
 		// Get the participant's current session
-		const [session] = await db
-			.select()
-			.from(participantSessions)
-			.where(eq(participantSessions.participantId, participantId))
-			.orderBy(desc(participantSessions.createdAt))
+		const { data: sessions, error: sessionError } = await supabase
+			.from("participant_sessions")
+			.select("*")
+			.eq("participant_id", participantId)
+			.order("created_at", { ascending: false })
 			.limit(1);
 
-		if (!session || !session.roundId) {
+		const session = sessions?.[0];
+
+		if (!session || !session.round_id) {
 			return NextResponse.json(
 				{
 					error: "No active session found. Please start a round first.",
@@ -49,13 +47,16 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const currentRoundId = session.roundId;
+		const currentRoundId = session.round_id;
 
-		const [currentRound] = await db
-			.select()
-			.from(rounds)
-			.where(eq(rounds.id, currentRoundId))
+		const { data: roundsData, error: roundError } = await supabase
+			.from("rounds")
+			.select("*")
+			.eq("id", currentRoundId)
+			.eq("event_id", eventId)
 			.limit(1);
+
+		const currentRound = roundsData?.[0];
 
 		if (!currentRound) {
 			return NextResponse.json(
@@ -67,16 +68,33 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Get all questions for the current round
-		const allQuestions = await db
-			.select()
-			.from(questions)
-			.where(eq(questions.roundId, currentRoundId))
-			.orderBy(asc(questions.orderIndex));
+		const { data: allQuestions, error: questionsError } = await supabase
+			.from("questions")
+			.select("*")
+			.eq("round_id", currentRoundId)
+			.order("order_index", { ascending: true });
 
-		if (allQuestions.length === 0) {
+		if (!allQuestions || allQuestions.length === 0) {
+			// No questions in current round, instruct to start next round if available
+			// Find the next round (by order or created_at, assuming order_index exists)
+			const { data: allRounds } = await supabase
+				.from("rounds")
+				.select("*")
+				.eq("event_id", eventId)
+				.order("order_index", { ascending: true });
+
+			const currentRoundIndex =
+				allRounds?.findIndex((r) => r.id === currentRoundId) ?? -1;
+			const hasNextRound =
+				allRounds &&
+				currentRoundIndex >= 0 &&
+				currentRoundIndex < allRounds.length - 1;
+
 			return NextResponse.json({
-				completed: true,
-				message: "This round has no questions.",
+				completed: false,
+				message: hasNextRound
+					? "This round has no questions. Please start the next round."
+					: "This round has no questions and there are no more rounds.",
 				progress: {
 					current: 0,
 					total: 0,
@@ -85,27 +103,43 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Get all answered question IDs for the participant in the current round
-		const answeredQuestions = await db
-			.select({ questionId: responses.questionId })
-			.from(responses)
-			.where(
-				and(
-					eq(responses.participantId, participantId),
-					eq(responses.roundId, currentRoundId),
-				),
-			);
+		const { data: answeredQuestions, error: answeredError } = await supabase
+			.from("responses")
+			.select("question_id")
+			.eq("participant_id", participantId)
+			.eq("round_id", currentRoundId);
 
-		const answeredQuestionIds = answeredQuestions.map((r) => r.questionId);
+		const answeredQuestionIds = (answeredQuestions || []).map(
+			(r: { question_id: string }) => r.question_id,
+		);
 
 		// Find the first unanswered question
 		const nextQuestion = allQuestions.find(
-			(q) => !answeredQuestionIds.includes(q.id),
+			(q: { id: string }) => !answeredQuestionIds.includes(q.id),
 		);
 
 		if (!nextQuestion) {
+			// All questions in this round have been answered, check for next round
+			const { data: allRounds } = await supabase
+				.from("rounds")
+				.select("*")
+				.eq("event_id", eventId)
+				.order("order_index", { ascending: true });
+
+			const currentRoundIndex =
+				allRounds?.findIndex((r) => r.id === currentRoundId) ?? -1;
+			const hasNextRound =
+				allRounds &&
+				currentRoundIndex >= 0 &&
+				currentRoundIndex < allRounds.length - 1;
+
+			console.log(allRounds);
+
 			return NextResponse.json({
-				completed: true,
-				message: "All questions in this round have been answered.",
+				completed: !hasNextRound,
+				message: hasNextRound
+					? "All questions in this round have been answered. Please start the next round."
+					: "All questions in all rounds have been answered.",
 				progress: {
 					current: allQuestions.length,
 					total: allQuestions.length,
@@ -113,41 +147,44 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		let questionStartTime = session.questionStartedAt;
+		let questionStartedAt = session.question_started_at;
 
 		// If the current question in the session is not the next unanswered question,
 		// it means we need to start the timer for the new question.
-		if (session.currentQuestionId !== nextQuestion.id) {
-			questionStartTime = new Date();
-			await db
-				.update(participantSessions)
-				.set({
-					currentQuestionId: nextQuestion.id,
-					questionStartedAt: questionStartTime,
-					isOnQuestion: true,
+		if (session.current_question_id !== nextQuestion.id) {
+			questionStartedAt = new Date().toISOString();
+			await supabase
+				.from("participant_sessions")
+				.update({
+					current_question_id: nextQuestion.id,
+					question_started_at: questionStartedAt,
+					is_on_question: true,
 				})
-				.where(eq(participantSessions.id, session.id));
+				.eq("id", session.id);
 		}
 
 		const timeLimitSeconds =
-			nextQuestion.useRoundDefault && currentRound.timeLimit
-				? currentRound.timeLimit
-				: nextQuestion.timeLimit;
+			nextQuestion.use_round_default && currentRound.time_limit
+				? currentRound.time_limit
+				: nextQuestion.time_limit;
 
 		const endTime =
-			timeLimitSeconds && questionStartTime
-				? new Date(questionStartTime.getTime() + timeLimitSeconds * 1000)
+			timeLimitSeconds && questionStartedAt
+				? new Date(
+						new Date(`${questionStartedAt}Z`).getTime() +
+							timeLimitSeconds * 1000,
+					).toISOString()
 				: null;
 
 		return NextResponse.json({
-			questionId: nextQuestion.questionId,
+			question_id: nextQuestion.question_id,
 			progress: {
 				current: answeredQuestionIds.length + 1,
 				total: allQuestions.length,
 			},
 			timing: {
-				startTime: questionStartTime,
-				endTime: endTime,
+				start_time: questionStartedAt,
+				end_time: endTime,
 			},
 		});
 	} catch (error) {

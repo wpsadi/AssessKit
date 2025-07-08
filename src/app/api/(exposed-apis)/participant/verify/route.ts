@@ -13,7 +13,15 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const payload = verifyToken(token);
+		let payload;
+		try {
+			payload = await verifyToken(token);
+		} catch (err) {
+			return NextResponse.json(
+				{ error: "Invalid or expired token" },
+				{ status: 401 },
+			);
+		}
 
 		if (!payload) {
 			return NextResponse.json(

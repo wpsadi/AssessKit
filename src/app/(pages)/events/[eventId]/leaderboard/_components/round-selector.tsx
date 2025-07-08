@@ -8,40 +8,24 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { Round } from "@/lib/types";
-import { useRouter, useSearchParams } from "next/navigation";
 
 interface RoundSelectorProps {
 	rounds: Round[];
 	selectedRoundId?: string;
 	eventId: string;
+	onRoundChange: (roundId: string) => void;
 }
 
 export function RoundSelector({
 	rounds,
 	selectedRoundId,
 	eventId,
+	onRoundChange,
 }: RoundSelectorProps) {
-	const router = useRouter();
-	const searchParams = useSearchParams();
-
-	const handleRoundChange = (value: string) => {
-		const params = new URLSearchParams(searchParams.toString());
-		if (value === "all") {
-			params.delete("roundId");
-		} else {
-			params.set("roundId", value);
-		}
-		router.push(`/events/${eventId}/leaderboard?${params.toString()}`);
-	};
-
 	return (
 		<div className="flex items-center gap-4">
-			{/* biome-ignore lint/a11y/noLabelWithoutControl: <explanation> */}
 			<label className="font-medium text-sm">View results for:</label>
-			<Select
-				value={selectedRoundId || "all"}
-				onValueChange={handleRoundChange}
-			>
+			<Select value={selectedRoundId || "all"} onValueChange={onRoundChange}>
 				<SelectTrigger className="w-64">
 					<SelectValue />
 				</SelectTrigger>

@@ -12,6 +12,10 @@ export interface TokenPayload {
 }
 
 export function generateToken(payload: Omit<TokenPayload, "exp">): string {
+	if (!payload.eventId) {
+		throw new Error("Token payload must include eventId");
+	}
+
 	const tokenPayload: TokenPayload = {
 		...payload,
 		exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours from now

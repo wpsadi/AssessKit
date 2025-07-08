@@ -19,6 +19,17 @@ interface ParticipantAnswersPageProps {
 	}>;
 }
 
+function formatTimeTaken(seconds: number): string {
+	const h = Math.floor(seconds / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	const s = seconds % 60;
+	const parts = [];
+	if (h > 0) parts.push(`${h}h`);
+	if (m > 0) parts.push(`${m}m`);
+	parts.push(`${s}s`);
+	return parts.join(" ");
+}
+
 export default function ParticipantAnswersPage({
 	params,
 }: ParticipantAnswersPageProps) {
@@ -135,14 +146,18 @@ export default function ParticipantAnswersPage({
 									<p>
 										<strong>Points Earned:</strong> {response.pointsEarned}
 									</p>
-									{response.timeTaken && (
-										<p>
-											<strong>Time Taken:</strong> {response.timeTaken} seconds
-										</p>
-									)}
-									<p className="text-muted-foreground text-sm">
-										Submitted at:{" "}
-										{format(new Date(response.submittedAt), "PPP p")}
+									<p>
+										<strong>Time Taken:</strong>{" "}
+										{typeof response.timeTaken === "number" &&
+										response.timeTaken >= 0
+											? formatTimeTaken(response.timeTaken)
+											: "N/A"}
+									</p>
+									<p>
+										<strong>Submitted At:</strong>{" "}
+										{response.submittedAt
+											? format(new Date(response.submittedAt), "PPP p")
+											: "N/A"}
 									</p>
 								</CardContent>
 							</Card>

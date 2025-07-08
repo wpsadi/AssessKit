@@ -51,7 +51,7 @@ export const rounds = pgTable("rounds", {
 	title: text("title").notNull(),
 	description: text("description"),
 	orderIndex: integer("order_index").default(0).notNull(),
-	timeLimit: integer("time_limit"),
+	timeLimit: integer("time_limit"), // in minutes
 	useEventDuration: boolean("use_event_duration").default(false).notNull(),
 	isActive: boolean("is_active").default(false).notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -72,7 +72,7 @@ export const questions = pgTable(
 		answerIds: jsonb("answer_ids").$type<string[]>().notNull(),
 		positivePoints: integer("positive_points").default(1).notNull(),
 		negativePoints: integer("negative_points").default(0).notNull(),
-		timeLimit: integer("time_limit"),
+		timeLimit: integer("time_limit"), // in seconds
 		useRoundDefault: boolean("use_round_default").default(true).notNull(),
 		orderIndex: integer("order_index").default(0).notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),

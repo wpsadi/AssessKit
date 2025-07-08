@@ -1,178 +1,269 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { AppRouter } from "@/server/api/root";
-import { api } from "@/trpc/react";
-import type { inferRouterOutputs } from "@trpc/server";
-import { ArrowLeft, Download, RefreshCw, Trophy } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+	AlertCircle,
+	ArrowLeft,
+	Download,
+	RefreshCw,
+	Trophy,
+} from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { LeaderboardStats } from "./_components/leaderboard-stats";
 import { LeaderboardTable } from "./_components/leaderboard-table";
 import { RoundSelector } from "./_components/round-selector";
 
-// Local interfaces to match component expectations
-interface ComponentLeaderboardEntry {
-	participant: {
-		id: string;
-		name: string;
-		email: string;
-	};
-	score: {
-		total_points: number;
-		total_questions: number;
-		correct_answers: number;
-		completion_time: number | null;
-		completed_at: string | null;
-	};
-	rank: number;
-}
-
-interface ComponentLeaderboardStats {
-	totalParticipants: number;
-	averageScore: number;
-	highestScore: number;
-	completionRate: number;
-}
+import { useMemo } from "react";
+import { useEventData } from "./_components/use-event-data";
+import { useLeaderboard } from "./_components/use-leaderboard";
+import { useLeaderboardParams } from "./_components/use-leaderboard-params";
 
 interface LeaderboardPageProps {
 	params: Promise<{ eventId: string }>;
 	searchParams: Promise<{ roundId?: string }>;
 }
 
+// Utility functions for formatting
+function formatDuration(seconds: number | null): string {
+	if (!seconds) return "N/A";
+
+	const mins = Math.floor(seconds / 60);
+	const secs = seconds % 60;
+
+	if (mins === 0) {
+		return `${secs}s`;
+	}
+	return `${mins}m ${secs}s`;
+}
+
+function formatAccuracy(accuracy: number): string {
+	return `${(accuracy * 100).toFixed(1)}%`;
+}
+
+function formatPoints(points: number): string {
+	return points.toLocaleString();
+}
+
+interface LeaderboardDataEntry {
+	participant: {
+		id: string;
+		name: string;
+		email: string;
+	};
+	score?: {
+		total_points?: number;
+		total_questions?: number;
+		correct_answers?: number;
+		completion_time?: number;
+		completed_at?: string | null;
+	};
+	totalPoints?: number;
+	totalQuestions?: number;
+	correctAnswers?: number;
+	completionTime?: number;
+	accuracy?: number;
+	rank: number;
+	roundsCompleted?: number;
+}
+
+// Transform leaderboard data to match component interface
+function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundData = false) {
+	if (!leaderboard) return [];
+
+	return leaderboard.map((entry) => {
+		// The backend now returns both legacy score object and direct properties
+		const totalPoints = entry.score?.total_points || entry.totalPoints || 0;
+		const totalQuestions = entry.score?.total_questions || entry.totalQuestions || 0;
+		const correctAnswers = entry.score?.correct_answers || entry.correctAnswers || 0;
+		const completionTime = entry.score?.completion_time || entry.completionTime || 0;
+		const accuracy = entry.accuracy || (totalQuestions > 0 ? correctAnswers / totalQuestions : 0);
+
+		return {
+			participant: {
+				id: entry.participant.id,
+				name: entry.participant.name,
+				email: entry.participant.email,
+			},
+			score: {
+				total_points: totalPoints,
+				total_questions: totalQuestions,
+				correct_answers: correctAnswers,
+				completion_time: completionTime,
+				completed_at: entry.score?.completed_at || null,
+			},
+			// Formatted display values
+			points: totalPoints,
+			formattedPoints: formatPoints(totalPoints),
+			completionTime: completionTime,
+			formattedCompletionTime: formatDuration(completionTime),
+			timeSpent: completionTime,
+			formattedTimeSpent: formatDuration(completionTime),
+			rank: entry.rank,
+			accuracy: accuracy,
+			formattedAccuracy: formatAccuracy(accuracy),
+			isCompleted: !!entry.score?.completed_at,
+			roundsCompleted: isRoundData ? 1 : entry.roundsCompleted || 0,
+		};
+	});
+}
+
+// Loading component
+function LoadingState() {
+	return (
+		<div className="min-h-screen bg-background">
+			<header className="border-border border-b bg-card shadow-sm">
+				<div className="container mx-auto px-4 py-4">
+					<div className="flex items-center gap-4">
+						<Link href="/dashboard">
+							<Button variant="ghost" size="sm">
+								<ArrowLeft className="mr-2 h-4 w-4" />
+								Back to Dashboard
+							</Button>
+						</Link>
+						<div className="flex-1">
+							<div className="h-8 w-64 animate-pulse rounded bg-gray-200" />
+						</div>
+					</div>
+				</div>
+			</header>
+			<main className="container mx-auto px-4 py-8">
+				<div className="py-8 text-center">
+					<div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+					<p>Loading leaderboard...</p>
+				</div>
+			</main>
+		</div>
+	);
+}
+
+// Error component
+function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+	return (
+		<div className="min-h-screen bg-background">
+			<header className="border-border border-b bg-card shadow-sm">
+				<div className="container mx-auto px-4 py-4">
+					<div className="flex items-center gap-4">
+						<Link href="/dashboard">
+							<Button variant="ghost" size="sm">
+								<ArrowLeft className="mr-2 h-4 w-4" />
+								Back to Dashboard
+							</Button>
+						</Link>
+					</div>
+				</div>
+			</header>
+			<main className="container mx-auto px-4 py-8">
+				<Card className="py-12 text-center">
+					<CardContent>
+						<AlertCircle className="mx-auto mb-4 h-16 w-16 text-red-300" />
+						<h3 className="mb-2 font-semibold text-xl">
+							Error Loading Leaderboard
+						</h3>
+						<p className="mb-4 text-gray-600">
+							{error instanceof Error ? error.message : "An unexpected error occurred"}
+						</p>
+						<Button onClick={onRetry} variant="outline">
+							<RefreshCw className="mr-2 h-4 w-4" />
+							Try Again
+						</Button>
+					</CardContent>
+				</Card>
+			</main>
+		</div>
+	);
+}
+
 export default function LeaderboardPage({
 	params,
 	searchParams,
 }: LeaderboardPageProps) {
-	const [eventId, setEventId] = useState<string>("");
-	const [roundId, setRoundId] = useState<string | undefined>();
+	// Load URL parameters
+	const { eventId, roundId, isParamsLoading, handleRoundChange } =
+		useLeaderboardParams({
+			params,
+			searchParams,
+		});
 
-	useEffect(() => {
-		const loadParams = async () => {
-			const resolvedParams = await params;
-			const resolvedSearchParams = await searchParams;
-			setEventId(resolvedParams.eventId);
-			setRoundId(resolvedSearchParams.roundId);
+	// Load event and rounds data
+	const {
+		currentEvent,
+		rounds,
+		isLoading: eventDataLoading,
+		error: eventDataError,
+	} = useEventData(eventId);
+
+	// Load leaderboard data
+	const {
+		leaderboard,
+		stats,
+		isLoading: leaderboardLoading,
+		isRefreshing,
+		isRecalculating,
+		error: leaderboardError,
+		refreshAll,
+		handleRecalculateScores,
+	} = useLeaderboard({ eventId, roundId });
+
+	// Transform data for components
+	const transformedLeaderboard = useMemo(() => {
+		console.log(leaderboard)
+		return transformLeaderboardData(leaderboard || [], !!roundId);
+	}, [leaderboard, roundId]);
+
+	const transformedStats = useMemo(() => {
+		if (!stats)
+			return {
+				totalParticipants: 0,
+				averageScore: 0,
+				highestScore: 0,
+				completionRate: 0,
+				overallAccuracy: 0,
+				totalSessions: 0,
+				completedSessions: 0,
+			};
+
+		return {
+			totalParticipants: stats.totalParticipants,
+			averageScore: stats.averageScore,
+			highestScore: stats.highestScore,
+			completionRate: stats.completionRate,
+			overallAccuracy: stats.overallAccuracy,
+			totalSessions: stats.totalSessions,
+			completedSessions: stats.completedSessions,
 		};
-		loadParams();
-	}, [params, searchParams]);
+	}, [stats]);
 
-	const { data: events, isLoading: eventsLoading } =
-		api.events.getEvents.useQuery(undefined, {
-			refetchInterval: 1000 * 10,
-		});
-	const { data: rounds, isLoading: roundsLoading } =
-		api.rounds.getPublicRounds.useQuery(
-			{ eventId },
-			{ enabled: !!eventId, refetchInterval: 1000 * 10 }, // Cache rounds for 10 seconds
-		);
+	// Handle export functionality
+	const handleExport = () => {
+		// TODO: Implement export functionality
+		console.log("Exporting leaderboard data:", transformedLeaderboard);
+		// You could implement CSV export, PDF generation, etc.
+	};
 
-	const {
-		data: eventLeaderboard,
-		isLoading: eventLeaderboardLoading,
-		refetch: refetchEventLeaderboard,
-	} = api.leaderboard.getEventLeaderboard.useQuery(
-		{ eventId },
-		{ enabled: !!eventId && !roundId, refetchInterval: 1000 * 10 }, // Cache event leaderboard for 10 seconds
-	);
-
-	const {
-		data: roundLeaderboard,
-		isLoading: roundLeaderboardLoading,
-		refetch: refetchRoundLeaderboard,
-	} = api.leaderboard.getRoundLeaderboard.useQuery(
-		// biome-ignore lint/style/noNonNullAssertion: roundId is guaranteed to be defined here
-		{ roundId: roundId! },
-		{ enabled: !!roundId, refetchInterval: 1000 * 10 }, // Cache round leaderboard for 10 seconds
-	);
-
-	const { data: eventStats, isLoading: statsLoading } =
-		api.leaderboard.getEventStats.useQuery(
-			{ eventId },
-			{ enabled: !!eventId, refetchInterval: 1000 * 10 }, // Cache event stats for 10 seconds
-		);
-
-	const recalculateScoresMutation =
-		api.leaderboard.recalculateEventScores.useMutation({
-			onSuccess: () => {
-				toast.success("Scores recalculated successfully!");
-				refetchEventLeaderboard();
-				refetchRoundLeaderboard();
-			},
-			onError: (error) => {
-				toast.error(`Error recalculating scores: ${error.message}`);
-			},
-		});
-
-	if (!eventId) {
-		return <div>Loading...</div>;
+	// Loading state
+	if (isParamsLoading || eventDataLoading) {
+		return <LoadingState />;
 	}
 
-	if (eventsLoading || roundsLoading) {
-		return <div>Loading...</div>;
+	// Error state
+	if (eventDataError || leaderboardError) {
+		return (
+			<ErrorState
+				error={eventDataError || leaderboardError}
+				onRetry={refreshAll}
+			/>
+		);
 	}
 
-	const event = events?.find((e) => e.id === eventId);
-
-	if (!event) {
+	// Event not found
+	if (!currentEvent) {
 		notFound();
 	}
 
+	// Find selected round
 	const selectedRound = roundId ? rounds?.find((r) => r.id === roundId) : null;
-
-	// Transform leaderboard data to match component interface
-	let leaderboard: ComponentLeaderboardEntry[] = [];
-	if (roundId && roundLeaderboard) {
-		leaderboard = roundLeaderboard.map((entry) => ({
-			participant: {
-				id: entry.participant.id,
-				name: entry.participant.name,
-				email: entry.participant.email,
-			},
-			score: {
-				total_points: entry.score.totalPoints || 0,
-				total_questions: entry.score.totalQuestions || 0,
-				correct_answers: entry.score.correctAnswers || 0,
-				completion_time: entry.score.completionTime,
-				completed_at: entry.score.completedAt
-					? entry.score.completedAt.toISOString()
-					: null,
-			},
-			rank: entry.rank,
-		}));
-	} else if (eventLeaderboard) {
-		leaderboard = eventLeaderboard.map((entry) => ({
-			participant: {
-				id: entry.participant.id,
-				name: entry.participant.name,
-				email: entry.participant.email,
-			},
-			score: {
-				total_points: Number(entry.totalPoints) || 0,
-				total_questions: Number(entry.totalQuestions) || 0,
-				correct_answers: Number(entry.correctAnswers) || 0,
-				completion_time: Number(entry.completionTime) || 0,
-				completed_at: new Date().toISOString(),
-			},
-			rank: entry.rank,
-		}));
-	}
-
-	const stats: ComponentLeaderboardStats = {
-		totalParticipants: Number(eventStats?.totalParticipants) || 0,
-		averageScore: Number(eventStats?.averageScore) || 0,
-		highestScore: Number(eventStats?.highestScore) || 0,
-		completionRate: 0, // Calculate completion rate if needed
-	};
-
-	const handleRecalculateScores = () => {
-		recalculateScoresMutation.mutate({ eventId });
-	};
-
-	const isLoading =
-		eventLeaderboardLoading || roundLeaderboardLoading || statsLoading;
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -188,7 +279,7 @@ export default function LeaderboardPage({
 						<div className="flex-1">
 							<h1 className="flex items-center gap-2 font-bold text-2xl">
 								<Trophy className="h-6 w-6 text-yellow-500" />
-								{event.title} - Leaderboard
+								{currentEvent.title} - Leaderboard
 							</h1>
 							<p className="text-muted-foreground">
 								{selectedRound
@@ -199,17 +290,25 @@ export default function LeaderboardPage({
 						<div className="flex gap-2">
 							<Button
 								variant="outline"
-								onClick={handleRecalculateScores}
-								disabled={recalculateScoresMutation.isPending}
+								onClick={refreshAll}
+								disabled={isRefreshing}
 							>
 								<RefreshCw
-									className={`mr-2 h-4 w-4 ${recalculateScoresMutation.isPending ? "animate-spin" : ""}`}
+									className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
 								/>
-								{recalculateScoresMutation.isPending
-									? "Recalculating..."
-									: "Recalculate Scores"}
+								{isRefreshing ? "Refreshing..." : "Refresh"}
 							</Button>
-							<Button variant="outline">
+							<Button
+								variant="outline"
+								onClick={handleRecalculateScores}
+								disabled={isRecalculating}
+							>
+								<RefreshCw
+									className={`mr-2 h-4 w-4 ${isRecalculating ? "animate-spin" : ""}`}
+								/>
+								{isRecalculating ? "Recalculating..." : "Recalculate Scores"}
+							</Button>
+							<Button variant="outline" onClick={handleExport}>
 								<Download className="mr-2 h-4 w-4" />
 								Export Results
 							</Button>
@@ -224,21 +323,23 @@ export default function LeaderboardPage({
 						rounds={rounds || []}
 						selectedRoundId={roundId}
 						eventId={eventId}
+						onRoundChange={handleRoundChange}
 					/>
 				</div>
 
-				{isLoading ? (
+				{leaderboardLoading ? (
 					<div className="py-8 text-center">
+						<div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
 						<p>Loading leaderboard data...</p>
 					</div>
 				) : (
 					<div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
 						<div className="lg:col-span-1">
-							<LeaderboardStats stats={stats} />
+							<LeaderboardStats stats={transformedStats} />
 						</div>
 						<div className="lg:col-span-3">
 							<LeaderboardTable
-								leaderboard={leaderboard}
+								leaderboard={transformedLeaderboard}
 								selectedRound={selectedRound}
 							/>
 						</div>
