@@ -1,7 +1,7 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
 import { arcProtect } from "@/utils/arcjet";
 import { createClient } from "@/utils/supabase/service";
-import type {NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {

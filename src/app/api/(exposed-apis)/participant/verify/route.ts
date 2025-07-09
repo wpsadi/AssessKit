@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 		}
 
 		const decision = await arcProtect(4, request);
-			if (decision) {
+		if (decision) {
 			return decision;
 		}
 

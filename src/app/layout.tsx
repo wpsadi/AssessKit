@@ -3,6 +3,8 @@ import "@/styles/globals.css";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 
+import { WebsiteNoticeDialog } from "@/components/alert-dialog-website";
+import Footer from "@/components/simple-footer";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
@@ -22,7 +24,9 @@ export default function RootLayout({
 	return (
 		<html lang="en" className={`${geist.variable}`}>
 			<body>
+				<WebsiteNoticeDialog />
 				<Providers>{children}</Providers>
+				<Footer />
 			</body>
 		</html>
 	);

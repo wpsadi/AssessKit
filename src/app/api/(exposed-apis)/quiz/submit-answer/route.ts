@@ -1,7 +1,7 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
 import { arcProtect } from "@/utils/arcjet";
 import { createClient } from "@/utils/supabase/service";
-import {  type NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		const decision = await arcProtect(2, request);
-		if (decision ) {
+		if (decision) {
 			return decision;
 		}
 
