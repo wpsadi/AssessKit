@@ -1,8 +1,8 @@
-import { and, eq, gt, max } from "drizzle-orm";
+import { and, count, eq, gt, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { rounds } from "@/server/db/schema";
+import { questions, rounds } from "@/server/db/schema";
 import { revalidatePath } from "next/cache";
 
 const createRoundSchema = z.object({
@@ -77,20 +77,21 @@ export const roundsRouter = createTRPCRouter({
 			const rounds = await ctx.db.query.rounds.findMany({
 				where: (rounds, { eq }) => eq(rounds.eventId, input.eventId),
 				orderBy: (rounds, { asc }) => asc(rounds.orderIndex),
-				with: {
-					questions: {
-						columns: {
-							id: true,
-						},
-					},
-				},
 			});
 
-			// Transform to include question counts
-			const roundsWithCounts = rounds.map((round) => ({
-				...round,
-				questionCount: round.questions.length,
-			}));
+			// Transform to include question counts - using direct query to avoid relation issues
+			const roundsWithCounts = await Promise.all(
+				rounds.map(async (round) => {
+					const questionCount = await ctx.db
+						.select({ count: count() })
+						.from(questions)
+						.where(eq(questions.roundId, round.id));
+					return {
+						...round,
+						questionCount: questionCount[0]?.count || 0,
+					};
+				}),
+			);
 
 			return roundsWithCounts;
 		}),
@@ -110,11 +111,6 @@ export const roundsRouter = createTRPCRouter({
 							durationMinutes: true,
 						},
 					},
-					questions: {
-						columns: {
-							id: true,
-						},
-					},
 				},
 			});
 
@@ -127,9 +123,15 @@ export const roundsRouter = createTRPCRouter({
 				throw new Error("Unauthorized");
 			}
 
+			// Get question count using direct query to avoid relation issues
+			const questionCount = await ctx.db
+				.select({ count: count() })
+				.from(questions)
+				.where(eq(questions.roundId, round.id));
+
 			return {
 				...round,
-				questionCount: round.questions.length,
+				questionCount: questionCount[0]?.count || 0,
 			};
 		}),
 
@@ -153,8 +155,7 @@ export const roundsRouter = createTRPCRouter({
 			const { orderIndex, ...roundData } = input;
 
 			// If no order specified, get the next available order
-			const maxOrder =
-				orderIndex ??
+			const maxOrder = orderIndex ??
 				(await ctx.db
 					.select({ maxOrder: max(rounds.orderIndex) })
 					.from(rounds)
@@ -221,6 +222,7 @@ export const roundsRouter = createTRPCRouter({
 						event: {
 							columns: {
 								organizerId: true,
+								id: true,
 							},
 						},
 					},
@@ -234,21 +236,28 @@ export const roundsRouter = createTRPCRouter({
 					throw new Error("Unauthorized");
 				}
 
-				// Delete the round
+				console.log("Deleting round:", round.id);
+
+				// Delete the round - cascading deletes will handle all related records
 				await tx.delete(rounds).where(eq(rounds.id, input.id));
 
-				// Update order of remaining rounds in the same event
-				await tx
-					.update(rounds)
-					.set({
-						orderIndex: round.orderIndex - 1,
-					})
-					.where(
+				// Update order of remaining rounds in the same event (shift down)
+				const remainingRounds = await tx.query.rounds.findMany({
+					where: (rounds, { eq, and }) =>
 						and(
 							eq(rounds.eventId, round.eventId),
 							gt(rounds.orderIndex, round.orderIndex),
 						),
-					);
+				});
+
+				// Update each remaining round's orderIndex
+				for (const remainingRound of remainingRounds) {
+					await tx
+						.update(rounds)
+						.set({ orderIndex: remainingRound.orderIndex - 1 })
+						.where(eq(rounds.id, remainingRound.id));
+				}
+
 				revalidatePath(`events/${round.eventId}/manage-rounds`);
 
 				return { success: true };
@@ -277,7 +286,7 @@ export const roundsRouter = createTRPCRouter({
 					tx
 						.update(rounds)
 						.set({ orderIndex: round.orderIndex })
-						.where(eq(rounds.id, round.id)),
+						.where(eq(rounds.id, round.id))
 				);
 
 				await Promise.all(updatePromises);
