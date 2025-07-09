@@ -29,8 +29,8 @@ export default function EventIdCopy() {
 
 	if (!eventId) {
 		return (
-			<Card className="w-full max-w-md">
-				<CardContent className="p-4">
+			<Card className="w-full mb-2">
+				<CardContent className="p-1">
 					<p className="text-muted-foreground">No event ID found in URL</p>
 				</CardContent>
 			</Card>
@@ -38,8 +38,8 @@ export default function EventIdCopy() {
 	}
 
 	return (
-		<Card className="w-full max-w-md">
-			<CardContent className="p-4">
+		<Card className="w-full mb-2">
+			<CardContent className="p-1">
 				<div className="flex items-center justify-between gap-3">
 					<div className="min-w-0 flex-1">
 						<p className="mb-1 font-medium text-muted-foreground text-sm">
