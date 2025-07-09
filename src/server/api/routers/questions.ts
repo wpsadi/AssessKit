@@ -1,4 +1,4 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import {
 	events,
 	participants,
@@ -8,6 +8,7 @@ import {
 	scores,
 } from "@/server/db/schema";
 import { and, asc, eq, gt, max } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const createQuestionSchema = z.object({
@@ -45,7 +46,7 @@ const reorderSchema = z.object({
 
 export const questionsRouter = createTRPCRouter({
 	// CREATE - Add new question
-	create: publicProcedure
+	create: protectedProcedure
 		.input(createQuestionSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { orderIndex, ...questionData } = input;
@@ -85,11 +86,13 @@ export const questionsRouter = createTRPCRouter({
 				})
 				.returning();
 
+			revalidatePath(`rounds/${newQuestion?.roundId}/questions`);
+
 			return newQuestion;
 		}),
 
 	// READ - Get all questions for a round
-	getByRound: publicProcedure
+	getByRound: protectedProcedure
 		.input(z.object({ roundId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db
@@ -100,7 +103,7 @@ export const questionsRouter = createTRPCRouter({
 		}),
 
 	// READ - Get question by ID
-	getById: publicProcedure
+	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const [question] = await ctx.db
@@ -113,7 +116,7 @@ export const questionsRouter = createTRPCRouter({
 		}),
 
 	// UPDATE - Update question
-	update: publicProcedure
+	update: protectedProcedure
 		.input(updateQuestionSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { id, ...updateData } = input;
@@ -164,11 +167,13 @@ export const questionsRouter = createTRPCRouter({
 				.where(eq(questions.id, id))
 				.returning();
 
+			revalidatePath(`rounds/${updatedQuestion?.roundId}/questions`);
+
 			return updatedQuestion;
 		}),
 
 	// DELETE - Delete question and adjust order of remaining questions
-	delete: publicProcedure
+	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
@@ -195,15 +200,25 @@ export const questionsRouter = createTRPCRouter({
 					.set({ orderIndex: questionToDelete.orderIndex - 1 })
 					.where(gt(questions.orderIndex, questionToDelete.orderIndex));
 
+				revalidatePath(`rounds/${questionToDelete.roundId}/questions`);
+
 				return { success: true };
 			});
 		}),
 
 	// REORDER - Update order of multiple questions
-	reorder: publicProcedure
+	reorder: protectedProcedure
 		.input(reorderSchema)
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
+				// get questionData as it contains the roundId
+				const [firstQuestion] = await tx
+					.select({ roundId: questions.roundId })
+					.from(questions)
+					// biome-ignore lint/style/noNonNullAssertion: <explanation>
+					.where(eq(questions.id, input.questions[0]?.id!))
+					.limit(1);
+
 				const updatePromises = input.questions.map((question) =>
 					tx
 						.update(questions)
@@ -215,13 +230,15 @@ export const questionsRouter = createTRPCRouter({
 				);
 
 				await Promise.all(updatePromises);
+				// Revalidate the path to refresh question list
+				revalidatePath(`rounds/${firstQuestion?.roundId}/questions`);
 
 				return { success: true };
 			});
 		}),
 
 	// UTILITY - Move question up in order
-	moveUp: publicProcedure
+	moveUp: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
@@ -266,12 +283,13 @@ export const questionsRouter = createTRPCRouter({
 					})
 					.where(eq(questions.id, upperQuestion.id));
 
+				revalidatePath(`rounds/${currentQuestion.roundId}/questions`);
 				return { success: true };
 			});
 		}),
 
 	// UTILITY - Move question down in order
-	moveDown: publicProcedure
+	moveDown: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
@@ -316,12 +334,13 @@ export const questionsRouter = createTRPCRouter({
 					})
 					.where(eq(questions.id, lowerQuestion.id));
 
+				revalidatePath(`rounds/${currentQuestion.roundId}/questions`);
 				return { success: true };
 			});
 		}),
 
 	// BULK - Create multiple questions
-	bulkCreate: publicProcedure
+	bulkCreate: protectedProcedure
 		.input(
 			z.object({
 				roundId: z.string(),
@@ -403,6 +422,8 @@ export const questionsRouter = createTRPCRouter({
 					createdQuestions.push(newQuestion);
 				}
 
+				// Revalidate the path to refresh question list
+				revalidatePath(`rounds/${input.roundId}/questions`);
 				return {
 					success: true,
 					created: createdQuestions.length,

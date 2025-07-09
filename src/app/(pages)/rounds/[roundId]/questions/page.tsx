@@ -30,7 +30,7 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 		error: roundError,
 	} = api.rounds.getRound.useQuery(
 		{ id: roundId },
-		{ enabled: !!roundId, refetchInterval: 1000 * 10 },
+		{ enabled: !!roundId, refetchInterval: 1000 * 10, retry: 0 },
 	);
 
 	const {
@@ -40,7 +40,7 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 		refetch: refetchQuestions,
 	} = api.questions.getByRound.useQuery(
 		{ roundId },
-		{ enabled: !!roundId, refetchInterval: 1000 * 5 },
+		{ enabled: !!roundId, refetchInterval: 1000 * 5, retry: 0 },
 	);
 
 	const {
@@ -49,7 +49,7 @@ export default function QuestionsPage({ params }: QuestionsPageProps) {
 		error: eventError,
 	} = api.events.getEvent.useQuery(
 		{ id: round?.eventId || "" },
-		{ enabled: !!round?.eventId, refetchInterval: 1000 * 10 },
+		{ enabled: !!round?.eventId, refetchInterval: 1000 * 10, retry: 0 },
 	);
 
 	if (!roundId) {

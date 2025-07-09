@@ -1,10 +1,7 @@
 import { z } from "zod";
 
-import {
-	createTRPCRouter,
-	protectedProcedure,
-	publicProcedure,
-} from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { revalidatePath } from "next/cache";
 export const userRouter = createTRPCRouter({
 	getUser: protectedProcedure.query(async ({ ctx }) => {
 		const { supabase } = ctx;
@@ -28,6 +25,7 @@ export const userRouter = createTRPCRouter({
 		if (response.error) {
 			throw response.error;
 		}
+		revalidatePath("/", "layout");
 		return response;
 	}),
 });

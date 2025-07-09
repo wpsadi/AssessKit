@@ -8,6 +8,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateRoundDialog } from "./_components/create-round-dialog";
+import EventIdCopy from "./_components/event-id-copy";
 import { RoundSortableList } from "./_components/round-sortable-list";
 
 interface ManageRoundsPageProps {
@@ -28,6 +29,7 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 	const { data: events, isLoading: eventsLoading } =
 		api.events.getEvents.useQuery(undefined, {
 			refetchInterval: 10000,
+			retry: 0,
 		});
 
 	const {
@@ -39,6 +41,7 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 		{
 			enabled: !!eventId,
 			refetchInterval: 10000,
+			retry: 0,
 		},
 	);
 
@@ -122,6 +125,8 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 						</AlertDescription>
 					</Alert>
 				)}
+
+				<EventIdCopy />
 
 				{totalEventDuration > 0 && usedDuration > totalEventDuration && (
 					<Alert variant="destructive" className="mb-6">

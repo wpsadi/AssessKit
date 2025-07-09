@@ -1,8 +1,8 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
+import { arcProtect } from "@/utils/arcjet";
 import { createClient } from "@/utils/supabase/service";
 import { and, asc, desc, eq } from "drizzle-orm";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
 				{ error: "Authorization token required" },
 				{ status: 401 },
 			);
+		}
+
+		const decision = await arcProtect(2, request);
+			if (decision) {
+			return decision;
 		}
 
 		const payload = verifyToken(token);

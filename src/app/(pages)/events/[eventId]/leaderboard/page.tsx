@@ -70,7 +70,10 @@ interface LeaderboardDataEntry {
 }
 
 // Transform leaderboard data to match component interface
-function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundData = false) {
+function transformLeaderboardData(
+	leaderboard: LeaderboardDataEntry[],
+	isRoundData = false,
+) {
 	if (!leaderboard) return [];
 
 	return leaderboard.map((entry) => {
@@ -85,7 +88,9 @@ function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundDa
 				total_questions: entry.totalQuestions,
 				correct_answers: entry.correctAnswers,
 				completion_time: entry.completionTime,
-				completed_at: entry.isCompleted ? entry.lastResponseTime || entry.lastActivity : null,
+				completed_at: entry.isCompleted
+					? entry.lastResponseTime || entry.lastActivity
+					: null,
 			},
 			// Formatted display values
 			points: entry.totalPoints,
@@ -98,7 +103,11 @@ function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundDa
 			accuracy: entry.accuracy / 100, // Convert from percentage to decimal for display
 			formattedAccuracy: formatAccuracy(entry.accuracy / 100),
 			isCompleted: entry.isCompleted,
-			roundsCompleted: isRoundData ? (entry.isCompleted ? 1 : 0) : entry.completedSessions,
+			roundsCompleted: isRoundData
+				? entry.isCompleted
+					? 1
+					: 0
+				: entry.completedSessions,
 			// Additional timing information for debugging/display
 			sessionInfo: {
 				totalSessions: entry.totalSessions,
@@ -142,7 +151,10 @@ function LoadingState() {
 }
 
 // Error component
-function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+function ErrorState({
+	error,
+	onRetry,
+}: { error: unknown; onRetry: () => void }) {
 	return (
 		<div className="min-h-screen bg-background">
 			<header className="border-border border-b bg-card shadow-sm">
@@ -165,7 +177,9 @@ function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void })
 							Error Loading Leaderboard
 						</h3>
 						<p className="mb-4 text-gray-600">
-							{error instanceof Error ? error.message : "An unexpected error occurred"}
+							{error instanceof Error
+								? error.message
+								: "An unexpected error occurred"}
 						</p>
 						<Button onClick={onRetry} variant="outline">
 							<RefreshCw className="mr-2 h-4 w-4" />
@@ -211,7 +225,7 @@ export default function LeaderboardPage({
 
 	// Transform data for components
 	const transformedLeaderboard = useMemo(() => {
-		console.log(leaderboard)
+		console.log(leaderboard);
 		return transformLeaderboardData(leaderboard || [], !!roundId);
 	}, [leaderboard, roundId]);
 

@@ -1,5 +1,6 @@
 import { events } from "@/server/db/schema";
 import { and, eq, gt, max } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
@@ -117,6 +118,8 @@ export const eventsRouter = createTRPCRouter({
 				})
 				.returning();
 
+			revalidatePath("/dashboard");
+
 			return event[0];
 		}),
 
@@ -138,7 +141,7 @@ export const eventsRouter = createTRPCRouter({
 			if (updatedEvent.length === 0) {
 				throw new Error("Event not found or unauthorized");
 			}
-
+			revalidatePath("/dashboard");
 			return updatedEvent[0];
 		}),
 
@@ -177,7 +180,7 @@ export const eventsRouter = createTRPCRouter({
 							eq(events.organizerId, ctx.user.id),
 						),
 					);
-
+				revalidatePath("/dashboard");
 				return { success: true };
 			});
 		}),
@@ -200,7 +203,7 @@ export const eventsRouter = createTRPCRouter({
 				);
 
 				await Promise.all(updatePromises);
-
+				revalidatePath("/dashboard");
 				return { success: true };
 			});
 		}),
@@ -231,7 +234,7 @@ export const eventsRouter = createTRPCRouter({
 					and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
 				)
 				.returning();
-
+			revalidatePath("/dashboard");
 			return updatedEvent[0];
 		}),
 
@@ -271,21 +274,27 @@ export const eventsRouter = createTRPCRouter({
 				// Swap orders
 				await tx
 					.update(events)
-					.set({ orderIndex: upperEvent.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: upperEvent.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(
 						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
 					);
 
 				await tx
 					.update(events)
-					.set({ orderIndex: currentEvent.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: currentEvent.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(
 						and(
 							eq(events.id, upperEvent.id),
 							eq(events.organizerId, ctx.user.id),
 						),
 					);
-
+				revalidatePath("/dashboard");
 				return { success: true };
 			});
 		}),
@@ -326,21 +335,27 @@ export const eventsRouter = createTRPCRouter({
 				// Swap orders
 				await tx
 					.update(events)
-					.set({ orderIndex: lowerEvent.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: lowerEvent.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(
 						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
 					);
 
 				await tx
 					.update(events)
-					.set({ orderIndex: currentEvent.orderIndex, updatedAt: new Date() })
+					.set({
+						orderIndex: currentEvent.orderIndex,
+						updatedAt: new Date(),
+					})
 					.where(
 						and(
 							eq(events.id, lowerEvent.id),
 							eq(events.organizerId, ctx.user.id),
 						),
 					);
-
+				revalidatePath("/dashboard");
 				return { success: true };
 			});
 		}),

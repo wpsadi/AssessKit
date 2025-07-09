@@ -10,10 +10,27 @@ export const env = createEnv({
 		NODE_ENV: z
 			.enum(["development", "test", "production"])
 			.default("development"),
+		ARCJET_KEY: z
+			.string({
+				invalid_type_error: "ARCJET_KEY must be a string",
+				required_error: "ARCJET_KEY is required",
+			})
+			.min(1, {
+				message: "ARCJET_KEY cannot be empty",
+			}),
 
-		DATABASE_URL: z.string().url(),
+		DATABASE_URL: z.string().url({
+			message: "DATABASE_URL must be a valid URL",
+		}),
 
-		SUPABASE_SECRET_KEY: z.string().min(1),
+		SUPABASE_SECRET_KEY: z
+			.string({
+				invalid_type_error: "SUPABASE_SECRET_KEY must be a string",
+				required_error: "SUPABASE_SECRET_KEY is required",
+			})
+			.min(1, {
+				message: "SUPABASE_SECRET_KEY cannot be empty",
+			}),
 	},
 
 	/**
@@ -35,6 +52,7 @@ export const env = createEnv({
 	runtimeEnv: {
 		DATABASE_URL: process.env.DATABASE_URL,
 		NODE_ENV: process.env.NODE_ENV,
+		ARCJET_KEY: process.env.ARCJET_KEY,
 
 		// NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
 		NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,

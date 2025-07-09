@@ -1,6 +1,5 @@
 "use client";
 
-import { MockModeBanner } from "@/components/mock-mode-banner";
 import { Button } from "@/components/ui/button";
 import { api } from "@/trpc/react";
 import { Plus } from "lucide-react";
@@ -17,7 +16,12 @@ export default function DashboardPage() {
 	} = api.events.getEvents.useQuery(undefined, {
 		refetchInterval: 30000, // Refetch every 30 seconds
 		refetchOnWindowFocus: true,
-		retry: 3,
+		retry: 0,
+	});
+
+	const user = api.user.getUser.useQuery(undefined, {
+		refetchInterval: 1000 * 10,
+		retry: 0,
 	});
 
 	if (isLoading) {
@@ -25,7 +29,7 @@ export default function DashboardPage() {
 			<div className="min-h-screen bg-background">
 				<header className="border-border border-b bg-card shadow-sm">
 					<div className="container mx-auto flex items-center justify-between px-4 py-4">
-						<h1 className="font-bold text-2xl">Quiz Platform</h1>
+						<h1 className="font-bold text-2xl">AssessKit Platform</h1>
 						<UserNav />
 					</div>
 				</header>
@@ -46,7 +50,7 @@ export default function DashboardPage() {
 			<div className="min-h-screen bg-background">
 				<header className="border-border border-b bg-card shadow-sm">
 					<div className="container mx-auto flex items-center justify-between px-4 py-4">
-						<h1 className="font-bold text-2xl">Quiz Platform</h1>
+						<h1 className="font-bold text-2xl">AssessKit Platform</h1>
 						<UserNav />
 					</div>
 				</header>
@@ -71,33 +75,24 @@ export default function DashboardPage() {
 		);
 	}
 
-	// Use mock profile since there's no authentication system
-	const displayProfile = {
-		id: "mock-user",
-		email: "demo@example.com",
-		full_name: "Demo User",
-		avatar_url: null,
-		role: "organizer" as const,
-		created_at: new Date().toISOString(),
-		updated_at: new Date().toISOString(),
-	};
-
 	return (
 		<div className="min-h-screen bg-background">
 			<header className="border-border border-b bg-card shadow-sm">
 				<div className="container mx-auto flex items-center justify-between px-4 py-4">
-					<h1 className="font-bold text-2xl">Quiz Platform</h1>
+					<h1 className="font-bold text-2xl">AssessKit Platform</h1>
 					<UserNav />
 				</div>
 			</header>
 
 			<main className="container mx-auto px-4 py-8">
-				<MockModeBanner />
+				{/* <MockModeBanner /> */}
 
 				<div className="mb-8 flex items-center justify-between">
 					<div>
 						<h2 className="font-bold text-3xl">
-							Welcome back, {displayProfile.full_name || displayProfile.email}
+							Welcome back,{" "}
+							{user.data?.data.user?.user_metadata.name ||
+								user.data?.data.user?.email}
 						</h2>
 						<p className="mt-2 text-muted-foreground">
 							Manage your quiz events and track participant progress

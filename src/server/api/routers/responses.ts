@@ -1,4 +1,4 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import {
 	events,
 	participants,
@@ -8,6 +8,7 @@ import {
 	scores,
 } from "@/server/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const createResponseSchema = z.object({
@@ -34,7 +35,7 @@ const gradeResponseSchema = z.object({
 
 export const responsesRouter = createTRPCRouter({
 	// CREATE - Submit new response
-	create: publicProcedure
+	create: protectedProcedure
 		.input(createResponseSchema)
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
@@ -48,6 +49,13 @@ export const responsesRouter = createTRPCRouter({
 				if (!question) {
 					throw new Error("Question not found");
 				}
+
+				// get info about event by roundId
+				const [round] = await tx
+					.select()
+					.from(rounds)
+					.where(eq(rounds.id, input.roundId))
+					.limit(1);
 
 				// Check if answer is correct
 				const isCorrect = question.answerIds.includes(
@@ -66,12 +74,16 @@ export const responsesRouter = createTRPCRouter({
 					})
 					.returning();
 
+				revalidatePath(
+					`/events/${round?.eventId}/participants/${input.participantId}/answers`,
+				);
+
 				return newResponse;
 			});
 		}),
 
 	// READ - Get responses by participant
-	getByParticipant: publicProcedure
+	getByParticipant: protectedProcedure
 		.input(z.object({ participantId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db
@@ -82,7 +94,7 @@ export const responsesRouter = createTRPCRouter({
 		}),
 
 	// READ - Get responses by question
-	getByQuestion: publicProcedure
+	getByQuestion: protectedProcedure
 		.input(z.object({ questionId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db
@@ -93,7 +105,7 @@ export const responsesRouter = createTRPCRouter({
 		}),
 
 	// READ - Get responses by round
-	getByRound: publicProcedure
+	getByRound: protectedProcedure
 		.input(z.object({ roundId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db
@@ -104,7 +116,7 @@ export const responsesRouter = createTRPCRouter({
 		}),
 
 	// READ - Get specific participant's response to a question
-	getParticipantResponse: publicProcedure
+	getParticipantResponse: protectedProcedure
 		.input(
 			z.object({
 				participantId: z.string(),
@@ -127,7 +139,7 @@ export const responsesRouter = createTRPCRouter({
 		}),
 
 	// READ - Get response by ID
-	getById: publicProcedure
+	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const [response] = await ctx.db
@@ -140,7 +152,7 @@ export const responsesRouter = createTRPCRouter({
 		}),
 
 	// UPDATE - Update response (for manual grading/correction)
-	update: publicProcedure
+	update: protectedProcedure
 		.input(updateResponseSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { id, ...updateData } = input;
@@ -151,11 +163,23 @@ export const responsesRouter = createTRPCRouter({
 				.where(eq(responses.id, id))
 				.returning();
 
+			// get info about round
+			const [round] = await ctx.db
+				.select()
+				.from(rounds)
+				// biome-ignore lint/style/noNonNullAssertion: <explanation>
+				.where(eq(rounds.id, updatedResponse?.roundId!))
+				.limit(1);
+			// revalidatePath
+			revalidatePath(
+				`/events/${round?.eventId}/participants/${updatedResponse?.participantId}/answers`,
+			);
+
 			return updatedResponse;
 		}),
 
 	// GRADE - Grade/re-grade a response
-	grade: publicProcedure
+	grade: protectedProcedure
 		.input(gradeResponseSchema)
 		.mutation(async ({ ctx, input }) => {
 			const [updatedResponse] = await ctx.db
@@ -167,44 +191,70 @@ export const responsesRouter = createTRPCRouter({
 				.where(eq(responses.id, input.id))
 				.returning();
 
+			// get info about round
+			const [round] = await ctx.db
+				.select()
+				.from(rounds)
+				// biome-ignore lint/style/noNonNullAssertion: <explanation>
+				.where(eq(rounds.id, updatedResponse?.roundId!))
+				.limit(1);
+
+			// revalidatePath
+			revalidatePath(
+				`/events/${round?.eventId}/participants/${updatedResponse?.participantId}/answers`,
+			);
+
 			return updatedResponse;
 		}),
 
 	// DELETE - Delete response
-	delete: publicProcedure
+	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			await ctx.db.delete(responses).where(eq(responses.id, input.id));
+			// get info about round
+			const [response] = await ctx.db
+				.select()
+				.from(responses)
+				.where(eq(responses.id, input.id))
+				.limit(1);
+			const [round] = await ctx.db
+				.select()
+				.from(rounds)
+				// biome-ignore lint/style/noNonNullAssertion: <explanation>
+				.where(eq(rounds.id, response?.roundId!))
+				.limit(1);
 			return { success: true };
 		}),
 
 	// BULK - Grade multiple responses
-	bulkGrade: publicProcedure
-		.input(
-			z.object({
-				responses: z.array(gradeResponseSchema),
-			}),
-		)
-		.mutation(async ({ ctx, input }) => {
-			return ctx.db.transaction(async (tx) => {
-				const updatePromises = input.responses.map((response) =>
-					tx
-						.update(responses)
-						.set({
-							isCorrect: response.isCorrect,
-							pointsEarned: response.pointsEarned,
-						})
-						.where(eq(responses.id, response.id)),
-				);
+	// bulkGrade: protectedProcedure
+	// 	.input(
+	// 		z.object({
+	// 			responses: z.array(gradeResponseSchema),
+	// 		}),
+	// 	)
+	// 	.mutation(async ({ ctx, input }) => {
+	// 		return ctx.db.transaction(async (tx) => {
+	// 			const updatePromises = input.responses.map((response) =>
+	// 				tx
+	// 					.update(responses)
+	// 					.set({
+	// 						isCorrect: response.isCorrect,
+	// 						pointsEarned: response.pointsEarned,
+	// 					})
+	// 					.where(eq(responses.id, response.id))
+	// 			);
 
-				await Promise.all(updatePromises);
+	// 			await Promise.all(updatePromises);
+	// 			// Revalidate paths for each response
 
-				return { success: true, updated: input.responses.length };
-			});
-		}),
+	// 			return { success: true, updated: input.responses.length };
+	// 		});
+	// 	}),
 
 	// ANALYTICS - Get response statistics for a question
-	getQuestionStats: publicProcedure
+	getQuestionStats: protectedProcedure
 		.input(z.object({ questionId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const allResponses = await ctx.db

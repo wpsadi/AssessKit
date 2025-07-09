@@ -36,6 +36,7 @@ export default function ParticipantsPage() {
 		{ eventId },
 		{
 			enabled: !!eventId,
+			retry: 0,
 			refetchInterval: 1000 * 10, // Cache participants for 10 seconds
 		},
 	);

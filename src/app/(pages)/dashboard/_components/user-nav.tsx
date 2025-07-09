@@ -19,6 +19,7 @@ export function UserNav() {
 	const [isSigningOut, setIsSigningOut] = useState(false);
 	const user = api.user.getUser.useQuery(undefined, {
 		refetchInterval: 1000 * 10,
+		retry: 0,
 	});
 
 	const signOut = api.user.signOut.useMutation({});

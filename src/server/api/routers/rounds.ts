@@ -1,12 +1,9 @@
 import { and, eq, gt, max } from "drizzle-orm";
 import { z } from "zod";
 
-import {
-	createTRPCRouter,
-	protectedProcedure,
-	publicProcedure,
-} from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { rounds } from "@/server/db/schema";
+import { revalidatePath } from "next/cache";
 
 const createRoundSchema = z.object({
 	eventId: z.string(),
@@ -37,7 +34,7 @@ const reorderSchema = z.object({
 
 export const roundsRouter = createTRPCRouter({
 	// Public endpoint for getting rounds (for leaderboard)
-	getPublicRounds: publicProcedure
+	getPublicRounds: protectedProcedure
 		.input(z.object({ eventId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const rounds = await ctx.db.query.rounds.findMany({
@@ -171,6 +168,7 @@ export const roundsRouter = createTRPCRouter({
 					orderIndex: maxOrder,
 				})
 				.returning();
+			revalidatePath(`events/${newRound?.eventId}/manage-rounds`);
 
 			return newRound;
 		}),
@@ -206,6 +204,7 @@ export const roundsRouter = createTRPCRouter({
 				.set(updateData)
 				.where(eq(rounds.id, id))
 				.returning();
+			revalidatePath(`events/${round.eventId}/manage-rounds`);
 
 			return updatedRound;
 		}),
@@ -250,6 +249,7 @@ export const roundsRouter = createTRPCRouter({
 							gt(rounds.orderIndex, round.orderIndex),
 						),
 					);
+				revalidatePath(`events/${round.eventId}/manage-rounds`);
 
 				return { success: true };
 			});
@@ -281,6 +281,7 @@ export const roundsRouter = createTRPCRouter({
 				);
 
 				await Promise.all(updatePromises);
+				revalidatePath(`events/${input.eventId}/manage-rounds`);
 
 				return { success: true };
 			});
@@ -339,6 +340,8 @@ export const roundsRouter = createTRPCRouter({
 					.set({ orderIndex: currentRound.orderIndex })
 					.where(eq(rounds.id, upperRound.id));
 
+				revalidatePath(`events/${currentRound.eventId}/manage-rounds`);
+
 				return { success: true };
 			});
 		}),
@@ -392,6 +395,8 @@ export const roundsRouter = createTRPCRouter({
 					.set({ orderIndex: currentRound.orderIndex })
 					.where(eq(rounds.id, lowerRound.id));
 
+				revalidatePath(`events/${currentRound.eventId}/manage-rounds`);
+
 				return { success: true };
 			});
 		}),
@@ -425,6 +430,8 @@ export const roundsRouter = createTRPCRouter({
 				.set({ isActive: !round.isActive })
 				.where(eq(rounds.id, input.id))
 				.returning();
+
+			revalidatePath(`events/${round.eventId}/manage-rounds`);
 
 			return updatedRound;
 		}),

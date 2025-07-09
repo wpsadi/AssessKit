@@ -1,6 +1,7 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
+import { arcProtect } from "@/utils/arcjet";
 import { createClient } from "@/utils/supabase/service";
-import type { NextRequest } from "next/server";
+import type {NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -14,6 +15,11 @@ export async function POST(request: NextRequest) {
 				},
 				{ status: 401 },
 			);
+		}
+
+		const decision = await arcProtect(2, request);
+		if (decision) {
+			return decision;
 		}
 
 		const payload = verifyToken(token);
@@ -42,9 +48,7 @@ export async function POST(request: NextRequest) {
 		const supabase = createClient();
 
 		// Helper function to ensure timestamp has Z suffix for UTC
-		const ensureUTCTimestamp = (
-			timestamp: string | null,
-		): string | null => {
+		const ensureUTCTimestamp = (timestamp: string | null): string | null => {
 			if (!timestamp) return null;
 			return timestamp.endsWith("Z") ? timestamp : `${timestamp}Z`;
 		};
@@ -164,13 +168,12 @@ export async function POST(request: NextRequest) {
 			}
 
 			// Find the first question of the first round
-			const { data: firstQuestions, error: firstQuestionError } =
-				await supabase
-					.from("questions")
-					.select("*")
-					.eq("round_id", firstRound.id)
-					.order("order_index", { ascending: true })
-					.limit(1);
+			const { data: firstQuestions, error: firstQuestionError } = await supabase
+				.from("questions")
+				.select("*")
+				.eq("round_id", firstRound.id)
+				.order("order_index", { ascending: true })
+				.limit(1);
 
 			if (firstQuestionError) {
 				return NextResponse.json(
@@ -297,8 +300,7 @@ export async function POST(request: NextRequest) {
 			// Should not happen if session exists
 			return NextResponse.json(
 				{
-					error:
-						"Could not find the current round associated with session.",
+					error: "Could not find the current round associated with session.",
 					roundId: currentRoundId,
 					errmsg: "Current round not found in allRounds",
 				},
@@ -320,13 +322,12 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Find the first question of the next round to start it automatically
-		const { data: firstQuestions, error: firstQuestionError } =
-			await supabase
-				.from("questions")
-				.select("*")
-				.eq("round_id", nextRound.id)
-				.order("order_index", { ascending: true })
-				.limit(1);
+		const { data: firstQuestions, error: firstQuestionError } = await supabase
+			.from("questions")
+			.select("*")
+			.eq("round_id", nextRound.id)
+			.order("order_index", { ascending: true })
+			.limit(1);
 
 		if (firstQuestionError) {
 			return NextResponse.json(

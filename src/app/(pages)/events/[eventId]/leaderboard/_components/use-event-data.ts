@@ -10,6 +10,7 @@ export function useEventData(eventId: string) {
 		enabled: !!eventId,
 		refetchInterval: 1000 * 30, // 30 seconds
 		staleTime: 1000 * 60, // 1 minute
+		retry: 0,
 	});
 
 	// Rounds query
@@ -23,6 +24,7 @@ export function useEventData(eventId: string) {
 			enabled: !!eventId,
 			refetchInterval: 1000 * 30, // 30 seconds
 			staleTime: 1000 * 60, // 1 minute
+			retry: 0,
 		},
 	);
 

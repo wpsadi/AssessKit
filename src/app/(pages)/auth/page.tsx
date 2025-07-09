@@ -13,21 +13,24 @@ export default function LoginPage() {
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-background p-4">
 			<div className="w-full max-w-md">
-				<Alert className="mb-6 border-border bg-muted">
+				{/* <Alert className="mb-6 border-border bg-muted">
 					<Info className="h-4 w-4 text-muted-foreground" />
 					<AlertDescription className="text-foreground">
 						<strong>Demo Mode:</strong> This application is running with mock
 						data. Click "Continue with GitHub" to explore the interface without
 						needing actual GitHub authentication.
 					</AlertDescription>
-				</Alert>
+				</Alert> */}
 
 				<Card>
 					<CardHeader className="text-center">
-						<CardTitle className="font-bold text-2xl">Quiz Platform</CardTitle>
+						<CardTitle className="font-bold text-2xl">
+							AssessKit Platform
+						</CardTitle>
 						<CardDescription>
-							Sign in to get started (demo mode - no real authentication
-							required)
+							Sign in to get started
+							{/* (demo mode - no real authentication
+							required) */}
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

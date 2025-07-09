@@ -23,7 +23,8 @@ export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 		{
 			enabled: !!eventId,
 			refetchInterval: 1000 * 30, // 30 seconds
-			staleTime: 1000 * 25, // 25 seconds
+			staleTime: 1000 * 25, // 25 seconds,
+			retry: 0,
 		},
 	);
 
@@ -38,7 +39,8 @@ export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 		{
 			enabled: !!eventId,
 			refetchInterval: 1000 * 30, // 30 seconds
-			staleTime: 1000 * 25, // 25 seconds
+			staleTime: 1000 * 25, // 25 seconds,
+			retry: 0,
 		},
 	);
 
@@ -46,10 +48,7 @@ export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 	const refreshAll = useCallback(async () => {
 		setIsRefreshing(true);
 		try {
-			await Promise.all([
-				refetchLeaderboard(),
-				refetchStats(),
-			]);
+			await Promise.all([refetchLeaderboard(), refetchStats()]);
 			toast.success("Leaderboard data refreshed");
 		} catch (error) {
 			toast.error("Failed to refresh data");

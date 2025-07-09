@@ -1,6 +1,6 @@
 import { getTokenFromRequest, verifyToken } from "@/lib/auth-utils";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { arcProtect } from "@/utils/arcjet";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -11,6 +11,11 @@ export async function GET(request: NextRequest) {
 				{ error: "Authorization token required" },
 				{ status: 401 },
 			);
+		}
+
+		const decision = await arcProtect(4, request);
+			if (decision) {
+			return decision;
 		}
 
 		let payload;

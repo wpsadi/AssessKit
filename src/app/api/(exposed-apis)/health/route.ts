@@ -1,9 +1,15 @@
 import { db } from "@/server/db";
 import { events } from "@/server/db/schema";
-import { NextResponse } from "next/server";
+import { arcProtect } from "@/utils/arcjet";
+import { type NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
 	try {
+		const decision = await arcProtect(1, req);
+		if (decision) {
+			return decision;
+		}
+
 		// Test database connection
 		const eventCount = await db.select().from(events).limit(1);
 

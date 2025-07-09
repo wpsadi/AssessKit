@@ -1,6 +1,7 @@
-import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { participants } from "@/server/db/schema";
 import { and, asc, eq, gt, max, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const createParticipantSchema = z.object({
@@ -30,7 +31,7 @@ const reorderSchema = z.object({
 
 export const participantsRouter = createTRPCRouter({
 	// CREATE - Add new participant
-	create: publicProcedure
+	create: protectedProcedure
 		.input(createParticipantSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { orderIndex, ...participantData } = input;
@@ -77,12 +78,12 @@ export const participantsRouter = createTRPCRouter({
 					orderIndex: maxOrder,
 				})
 				.returning();
-
+			revalidatePath(`/events/${input.eventId}/participants`);
 			return newParticipant;
 		}),
 
 	// READ - Get all participants for an event
-	getByEvent: publicProcedure
+	getByEvent: protectedProcedure
 		.input(z.object({ eventId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db
@@ -93,7 +94,7 @@ export const participantsRouter = createTRPCRouter({
 		}),
 
 	// READ - Get participant by ID
-	getById: publicProcedure
+	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const [participant] = await ctx.db
@@ -106,7 +107,7 @@ export const participantsRouter = createTRPCRouter({
 		}),
 
 	// READ - Get participant by email and event
-	getByEmailAndEvent: publicProcedure
+	getByEmailAndEvent: protectedProcedure
 		.input(z.object({ email: z.string(), eventId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const [participant] = await ctx.db
@@ -119,7 +120,7 @@ export const participantsRouter = createTRPCRouter({
 		}),
 
 	// UPDATE - Update participant
-	update: publicProcedure
+	update: protectedProcedure
 		.input(updateParticipantSchema)
 		.mutation(async ({ ctx, input }) => {
 			const { id, ...updateData } = input;
@@ -133,11 +134,13 @@ export const participantsRouter = createTRPCRouter({
 				.where(eq(participants.id, id))
 				.returning();
 
+			revalidatePath(`/events/${updatedParticipant?.eventId}/participants`);
+
 			return updatedParticipant;
 		}),
 
 	// DELETE - Delete participant and adjust order of remaining participants
-	delete: publicProcedure
+	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			return ctx.db.transaction(async (tx) => {
@@ -164,33 +167,39 @@ export const participantsRouter = createTRPCRouter({
 					.set({ orderIndex: participantToDelete.orderIndex - 1 })
 					.where(gt(participants.orderIndex, participantToDelete.orderIndex));
 
+				// Revalidate the path to refresh participant list
+				revalidatePath(`/events/${participantToDelete.eventId}/participants`);
 				return { success: true };
 			});
 		}),
 
-	// REORDER - Update order of multiple participants
-	reorder: publicProcedure
-		.input(reorderSchema)
-		.mutation(async ({ ctx, input }) => {
-			return ctx.db.transaction(async (tx) => {
-				const updatePromises = input.participants.map((participant) =>
-					tx
-						.update(participants)
-						.set({
-							orderIndex: participant.orderIndex,
-							updatedAt: new Date(),
-						})
-						.where(eq(participants.id, participant.id)),
-				);
+	// // REORDER - Update order of multiple participants
+	// reorder: protectedProcedure
+	// 	.input(reorderSchema)
+	// 	.mutation(async ({ ctx, input }) => {
+	// 		return ctx.db.transaction(async (tx) => {
+	// 			const updatePromises = input.participants.map((participant) =>
+	// 				tx
+	// 					.update(participants)
+	// 					.set({
+	// 						orderIndex: participant.orderIndex,
+	// 						updatedAt: new Date(),
+	// 					})
+	// 					.where(eq(participants.id, participant.id))
+	// 			);
 
-				await Promise.all(updatePromises);
+	// 			await Promise.all(updatePromises);
+	// 			// Revalidate the path to refresh participant list
+	// 			revalidatePath(
+	// 				`/events/${input.participants[0].}/participants`,
+	// 			);
 
-				return { success: true };
-			});
-		}),
+	// 			return { success: true };
+	// 		});
+	// 	}),
 
 	// UTILITY - Toggle participant active status
-	toggleActive: publicProcedure
+	toggleActive: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const [currentParticipant] = await ctx.db
@@ -212,9 +221,11 @@ export const participantsRouter = createTRPCRouter({
 				.where(eq(participants.id, input.id))
 				.returning();
 
+			revalidatePath(`/events/${updatedParticipant?.eventId}/participants`);
+
 			return updatedParticipant;
 		}),
-	bulkCreate: publicProcedure
+	bulkCreate: protectedProcedure
 		.input(
 			z.object({
 				eventId: z.string(),
@@ -264,13 +275,15 @@ export const participantsRouter = createTRPCRouter({
 				updated_at = NOW()
 		`);
 
+			revalidatePath(`/events/${eventId}/participants`);
+
 			return {
 				success: true,
 				processed: unique.length,
 			};
 		}),
 
-	getWithPasswordsByEvent: publicProcedure
+	getWithPasswordsByEvent: protectedProcedure
 		.input(z.object({ eventId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			return ctx.db

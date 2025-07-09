@@ -5,9 +5,9 @@ import {
 	sanitizeString,
 	validateRequiredFields,
 } from "@/lib/validation-utils";
+import { arcProtect } from "@/utils/arcjet";
 import { createClient } from "@/utils/supabase/service";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -19,6 +19,11 @@ export async function POST(request: NextRequest) {
 				{ error: "Invalid JSON in request body" },
 				{ status: 400 },
 			);
+		}
+
+		const decision = await arcProtect(20, request);
+		if (decision) {
+			return decision;
 		}
 
 		const { email, password, eventId } = body;
@@ -88,7 +93,12 @@ export async function POST(request: NextRequest) {
 			.single();
 
 		if (eventError || !event) {
-			return NextResponse.json({ error: "Event not found" }, { status: 404 });
+			return NextResponse.json(
+				{ error: "Event not found" },
+				{
+					status: 404,
+				},
+			);
 		}
 
 		if (event.startDate && new Date(event.startDate) > new Date()) {
