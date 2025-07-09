@@ -39,9 +39,69 @@ export async function POST(request: NextRequest) {
 				{ status: 400 },
 			);
 		}
+		const supabase = createClient();
+
+		// Helper function to ensure timestamp has Z suffix for UTC
+		const ensureUTCTimestamp = (
+			timestamp: string | null,
+		): string | null => {
+			if (!timestamp) return null;
+			return timestamp.endsWith("Z") ? timestamp : `${timestamp}Z`;
+		};
+
+		// ensure event timimg has started
+		const { data: event, error: eventError } = await supabase
+			.from("events")
+			.select("*")
+			.eq("id", eventId)
+			.single();
+
+		if (eventError) {
+			return NextResponse.json(
+				{
+					error: "Failed to fetch event",
+					errmsg: eventError.message,
+				},
+				{ status: 500 },
+			);
+		}
+
+		if (!event) {
+			return NextResponse.json(
+				{
+					error: "Event not found",
+					errmsg: "No event found with the provided ID",
+				},
+				{ status: 404 },
+			);
+		}
+
+		// Check if the event has started
+		const eventStartDate = ensureUTCTimestamp(event.startDate);
+		if (eventStartDate && new Date(eventStartDate) > new Date()) {
+			return NextResponse.json(
+				{
+					error: "Event not started",
+					errmsg: "The event has not started yet",
+				},
+				{ status: 400 },
+			);
+		}
+
+		// Check if the event has ended
+		const eventEndDate = ensureUTCTimestamp(event.endDate);
+		if (eventEndDate && new Date(eventEndDate) < new Date()) {
+			return NextResponse.json(
+				{
+					error: "Event has ended",
+					errmsg: "The event has already ended",
+				},
+				{ status: 400 },
+			);
+		}
 
 		// Get all rounds for the event, ordered by `order_index`
-		const supabase = createClient();
+
 		const { data: allRounds, error: roundsError } = await supabase
 			.from("rounds")
 			.select("*")
@@ -104,12 +164,13 @@ export async function POST(request: NextRequest) {
 			}
 
 			// Find the first question of the first round
-			const { data: firstQuestions, error: firstQuestionError } = await supabase
-				.from("questions")
-				.select("*")
-				.eq("round_id", firstRound.id)
-				.order("order_index", { ascending: true })
-				.limit(1);
+			const { data: firstQuestions, error: firstQuestionError } =
+				await supabase
+					.from("questions")
+					.select("*")
+					.eq("round_id", firstRound.id)
+					.order("order_index", { ascending: true })
+					.limit(1);
 
 			if (firstQuestionError) {
 				return NextResponse.json(
@@ -236,7 +297,8 @@ export async function POST(request: NextRequest) {
 			// Should not happen if session exists
 			return NextResponse.json(
 				{
-					error: "Could not find the current round associated with session.",
+					error:
+						"Could not find the current round associated with session.",
 					roundId: currentRoundId,
 					errmsg: "Current round not found in allRounds",
 				},
@@ -258,12 +320,13 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Find the first question of the next round to start it automatically
-		const { data: firstQuestions, error: firstQuestionError } = await supabase
-			.from("questions")
-			.select("*")
-			.eq("round_id", nextRound.id)
-			.order("order_index", { ascending: true })
-			.limit(1);
+		const { data: firstQuestions, error: firstQuestionError } =
+			await supabase
+				.from("questions")
+				.select("*")
+				.eq("round_id", nextRound.id)
+				.order("order_index", { ascending: true })
+				.limit(1);
 
 		if (firstQuestionError) {
 			return NextResponse.json(
