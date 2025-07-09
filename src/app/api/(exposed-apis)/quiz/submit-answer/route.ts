@@ -145,6 +145,17 @@ export async function POST(request: Request) {
 				);
 			}
 
+			// Event is over - mark session as completed
+			await supabase
+				.from("participant_sessions")
+				.update({
+					is_completed: true,
+					is_on_question: false,
+					current_question_id: null,
+					question_started_at: null,
+				})
+				.eq("id", session.id);
+
 			return NextResponse.json(
 				{
 					message: "Event is over. No more rounds available.",
@@ -339,6 +350,17 @@ export async function POST(request: Request) {
 					nextStep: "start-next-round",
 				});
 			}
+
+			// Event is over - mark session as completed
+			await supabase
+				.from("participant_sessions")
+				.update({
+					is_completed: true,
+					is_on_question: false,
+					current_question_id: null,
+					question_started_at: null,
+				})
+				.eq("id", session.id);
 
 			return NextResponse.json({
 				message: "All questions are answered and event is over.",

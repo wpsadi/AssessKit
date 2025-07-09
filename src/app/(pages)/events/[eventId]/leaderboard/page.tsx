@@ -52,20 +52,21 @@ interface LeaderboardDataEntry {
 		name: string;
 		email: string;
 	};
-	score?: {
-		total_points?: number;
-		total_questions?: number;
-		correct_answers?: number;
-		completion_time?: number;
-		completed_at?: string | null;
-	};
-	totalPoints?: number;
-	totalQuestions?: number;
-	correctAnswers?: number;
-	completionTime?: number;
-	accuracy?: number;
 	rank: number;
-	roundsCompleted?: number;
+	totalPoints: number;
+	totalQuestions: number;
+	correctAnswers: number;
+	accuracy: number;
+	timeTaken: number;
+	completionTime: number;
+	isCompleted: boolean;
+	sessionStart: string | null;
+	lastActivity: string | null;
+	firstResponseTime: string | null;
+	lastResponseTime: string | null;
+	totalSessions: number;
+	completedSessions: number;
+	questionsAnswered: number;
 }
 
 // Transform leaderboard data to match component interface
@@ -73,13 +74,6 @@ function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundDa
 	if (!leaderboard) return [];
 
 	return leaderboard.map((entry) => {
-		// The backend now returns both legacy score object and direct properties
-		const totalPoints = entry.score?.total_points || entry.totalPoints || 0;
-		const totalQuestions = entry.score?.total_questions || entry.totalQuestions || 0;
-		const correctAnswers = entry.score?.correct_answers || entry.correctAnswers || 0;
-		const completionTime = entry.score?.completion_time || entry.completionTime || 0;
-		const accuracy = entry.accuracy || (totalQuestions > 0 ? correctAnswers / totalQuestions : 0);
-
 		return {
 			participant: {
 				id: entry.participant.id,
@@ -87,24 +81,33 @@ function transformLeaderboardData(leaderboard: LeaderboardDataEntry[], isRoundDa
 				email: entry.participant.email,
 			},
 			score: {
-				total_points: totalPoints,
-				total_questions: totalQuestions,
-				correct_answers: correctAnswers,
-				completion_time: completionTime,
-				completed_at: entry.score?.completed_at || null,
+				total_points: entry.totalPoints,
+				total_questions: entry.totalQuestions,
+				correct_answers: entry.correctAnswers,
+				completion_time: entry.completionTime,
+				completed_at: entry.isCompleted ? entry.lastResponseTime || entry.lastActivity : null,
 			},
 			// Formatted display values
-			points: totalPoints,
-			formattedPoints: formatPoints(totalPoints),
-			completionTime: completionTime,
-			formattedCompletionTime: formatDuration(completionTime),
-			timeSpent: completionTime,
-			formattedTimeSpent: formatDuration(completionTime),
+			points: entry.totalPoints,
+			formattedPoints: formatPoints(entry.totalPoints),
+			completionTime: entry.completionTime,
+			formattedCompletionTime: formatDuration(entry.completionTime),
+			timeSpent: entry.timeTaken,
+			formattedTimeSpent: formatDuration(entry.timeTaken),
 			rank: entry.rank,
-			accuracy: accuracy,
-			formattedAccuracy: formatAccuracy(accuracy),
-			isCompleted: !!entry.score?.completed_at,
-			roundsCompleted: isRoundData ? 1 : entry.roundsCompleted || 0,
+			accuracy: entry.accuracy / 100, // Convert from percentage to decimal for display
+			formattedAccuracy: formatAccuracy(entry.accuracy / 100),
+			isCompleted: entry.isCompleted,
+			roundsCompleted: isRoundData ? (entry.isCompleted ? 1 : 0) : entry.completedSessions,
+			// Additional timing information for debugging/display
+			sessionInfo: {
+				totalSessions: entry.totalSessions,
+				completedSessions: entry.completedSessions,
+				sessionStart: entry.sessionStart,
+				lastActivity: entry.lastActivity,
+				firstResponse: entry.firstResponseTime,
+				lastResponse: entry.lastResponseTime,
+			},
 		};
 	});
 }

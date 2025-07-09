@@ -13,7 +13,7 @@ export function useLeaderboardRealtime({
 	onUpdate,
 	enabled = true,
 }: UseLeaderboardRealtimeProps) {
-	const intervalRef = useRef<NodeJS.Timeout>();
+	const intervalRef = useRef<NodeJS.Timeout | null>(null);
 	const lastUpdateRef = useRef<number>(Date.now());
 
 	useEffect(() => {

@@ -12,40 +12,24 @@ interface UseLeaderboardProps {
 export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
-	// Event leaderboard query
+	// Main leaderboard query - works for both event and round
 	const {
-		data: eventLeaderboard,
-		isLoading: eventLeaderboardLoading,
-		error: eventLeaderboardError,
-		refetch: refetchEventLeaderboard,
-	} = api.leaderboard.getEventLeaderboard.useQuery(
-		{ eventId },
+		data: leaderboard,
+		isLoading: leaderboardLoading,
+		error: leaderboardError,
+		refetch: refetchLeaderboard,
+	} = api.leaderboard.getLeaderboard.useQuery(
+		{ eventId, roundId },
 		{
-			enabled: !!eventId && !roundId,
-			refetchInterval: 5000,
-			staleTime: 1000 * 30, // 30 seconds
-		},
-	);
-
-	// Round leaderboard query
-	const {
-		data: roundLeaderboard,
-		isLoading: roundLeaderboardLoading,
-		error: roundLeaderboardError,
-		refetch: refetchRoundLeaderboard,
-	} = api.leaderboard.getRoundLeaderboard.useQuery(
-		// biome-ignore lint/style/noNonNullAssertion: <explanation>
-		{ roundId: roundId! },
-		{
-			enabled: !!roundId,
-			refetchInterval: 5000,
-			staleTime: 1000 * 30, // 30 seconds
+			enabled: !!eventId,
+			refetchInterval: 1000 * 30, // 30 seconds
+			staleTime: 1000 * 25, // 25 seconds
 		},
 	);
 
 	// Event stats query
 	const {
-		data: eventStats,
+		data: stats,
 		isLoading: statsLoading,
 		error: statsError,
 		refetch: refetchStats,
@@ -53,32 +37,17 @@ export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 		{ eventId },
 		{
 			enabled: !!eventId,
-			refetchInterval: 10000,
-			staleTime: 1000 * 60, // 1 minute
+			refetchInterval: 1000 * 30, // 30 seconds
+			staleTime: 1000 * 25, // 25 seconds
 		},
 	);
-
-	// Recalculate scores mutation
-	const recalculateScoresMutation =
-		api.leaderboard.recalculateEventScores.useMutation({
-			onSuccess: (result) => {
-				toast.success(
-					`${result.message} (${result.updatedScores} records updated)`,
-				);
-				refreshAll();
-			},
-			onError: (error) => {
-				toast.error(`Error recalculating scores: ${error.message}`);
-			},
-		});
 
 	// Refresh all data
 	const refreshAll = useCallback(async () => {
 		setIsRefreshing(true);
 		try {
 			await Promise.all([
-				refetchEventLeaderboard(),
-				refetchRoundLeaderboard(),
+				refetchLeaderboard(),
 				refetchStats(),
 			]);
 			toast.success("Leaderboard data refreshed");
@@ -87,37 +56,28 @@ export function useLeaderboard({ eventId, roundId }: UseLeaderboardProps) {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [refetchEventLeaderboard, refetchRoundLeaderboard, refetchStats]);
+	}, [refetchLeaderboard, refetchStats]);
 
-	// Handle score recalculation
+	// Handle score recalculation (placeholder - can be implemented later)
 	const handleRecalculateScores = useCallback(() => {
-		recalculateScoresMutation.mutate({ eventId });
-	}, [recalculateScoresMutation, eventId]);
-
-	// Determine current data and loading state
-	const currentLeaderboard = roundId ? roundLeaderboard : eventLeaderboard;
-	const isLoading = roundId ? roundLeaderboardLoading : eventLeaderboardLoading;
-	const error = roundId ? roundLeaderboardError : eventLeaderboardError;
+		toast.info("Score recalculation feature coming soon");
+	}, []);
 
 	return {
 		// Data
-		leaderboard: currentLeaderboard,
-		stats: eventStats,
+		leaderboard,
+		stats,
 
 		// Loading states
-		isLoading: isLoading || statsLoading,
+		isLoading: leaderboardLoading || statsLoading,
 		isRefreshing,
-		isRecalculating: recalculateScoresMutation.isPending,
+		isRecalculating: false,
 
 		// Error states
-		error: error || statsError,
+		error: leaderboardError || statsError,
 
 		// Actions
 		refreshAll,
 		handleRecalculateScores,
-
-		// Raw queries for advanced usage
-		eventLeaderboard,
-		roundLeaderboard,
 	};
 }
