@@ -8,7 +8,14 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { BarChart3, Calendar, Edit,  Settings, Trash2, Users } from "lucide-react";
+import {
+	BarChart3,
+	Calendar,
+	Edit,
+	Settings,
+	Trash2,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { DeleteEventDialog } from "./delete-event-dialog";
 import { EditEventDialog } from "./edit-event-dialog";
@@ -74,21 +81,21 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 				<Link href={`/events/${event.id}/manage-rounds`}>
 					<Button variant="outline" size="sm">
 						<Settings className="h-4 w-4" />
-						<span className="hidden md:inline md:mr-2">Manage Rounds</span>
+						<span className="hidden md:mr-2 md:inline">Manage Rounds</span>
 					</Button>
 				</Link>
 
 				<Link href={`/events/${event.id}/participants`}>
 					<Button variant="outline" size="sm">
 						<Users className="h-4 w-4" />
-						<span className="hidden md:inline md:mr-2">Participants</span>
+						<span className="hidden md:mr-2 md:inline">Participants</span>
 					</Button>
 				</Link>
 
 				<Link href={`/events/${event.id}/leaderboard`}>
 					<Button variant="outline" size="sm">
 						<BarChart3 className="h-4 w-4" />
-						<span className="hidden md:inline md:mr-2">Leaderboard</span>
+						<span className="hidden md:mr-2 md:inline">Leaderboard</span>
 					</Button>
 				</Link>
 
@@ -103,8 +110,8 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 						}}
 					>
 						<Button variant="ghost" size="sm">
-							<Edit className="inline md:hidden h-4 w-4" />
-							<span className="hidden md:inline md:mr-2">Edit</span>
+							<Edit className="inline h-4 w-4 md:hidden" />
+							<span className="hidden md:mr-2 md:inline">Edit</span>
 						</Button>
 					</EditEventDialog>
 
@@ -114,10 +121,8 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 							size="sm"
 							className="text-red-600 hover:text-red-700"
 						>
-							
-							<Trash2 className="inline md:hidden h-4 w-4" />
-							<span className="hidden md:inline md:mr-2">Delete</span>
-						
+							<Trash2 className="inline h-4 w-4 md:hidden" />
+							<span className="hidden md:mr-2 md:inline">Delete</span>
 						</Button>
 					</DeleteEventDialog>
 				</div>
