@@ -8,7 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { BarChart3, Calendar, Settings, Users } from "lucide-react";
+import { BarChart3, Calendar, Edit,  Settings, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { DeleteEventDialog } from "./delete-event-dialog";
 import { EditEventDialog } from "./edit-event-dialog";
@@ -73,22 +73,22 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 			<CardFooter className="flex flex-wrap gap-2">
 				<Link href={`/events/${event.id}/manage-rounds`}>
 					<Button variant="outline" size="sm">
-						<Settings className="mr-2 h-4 w-4" />
-						Manage Rounds
+						<Settings className="h-4 w-4" />
+						<span className="hidden md:inline md:mr-2">Manage Rounds</span>
 					</Button>
 				</Link>
 
 				<Link href={`/events/${event.id}/participants`}>
 					<Button variant="outline" size="sm">
-						<Users className="mr-2 h-4 w-4" />
-						Participants
+						<Users className="h-4 w-4" />
+						<span className="hidden md:inline md:mr-2">Participants</span>
 					</Button>
 				</Link>
 
 				<Link href={`/events/${event.id}/leaderboard`}>
 					<Button variant="outline" size="sm">
-						<BarChart3 className="mr-2 h-4 w-4" />
-						Leaderboard
+						<BarChart3 className="h-4 w-4" />
+						<span className="hidden md:inline md:mr-2">Leaderboard</span>
 					</Button>
 				</Link>
 
@@ -103,7 +103,8 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 						}}
 					>
 						<Button variant="ghost" size="sm">
-							Edit
+							<Edit className="inline md:hidden h-4 w-4" />
+							<span className="hidden md:inline md:mr-2">Edit</span>
 						</Button>
 					</EditEventDialog>
 
@@ -113,7 +114,10 @@ export function EventCard({ event, participantCount = 0 }: EventCardProps) {
 							size="sm"
 							className="text-red-600 hover:text-red-700"
 						>
-							Delete
+							
+							<Trash2 className="inline md:hidden h-4 w-4" />
+							<span className="hidden md:inline md:mr-2">Delete</span>
+						
 						</Button>
 					</DeleteEventDialog>
 				</div>

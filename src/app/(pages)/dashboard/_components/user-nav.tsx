@@ -13,6 +13,7 @@ import {
 
 import { api } from "@/trpc/react";
 import { LogOut } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 export function UserNav() {
@@ -64,6 +65,14 @@ export function UserNav() {
 				darkIcon={<Moon className="size-4" />}
 			/> */}
 
+			<Link
+				href="https://documenter.getpostman.com/view/30455760/2sB34co2QR"
+				target="_blank"
+				rel="noopener noreferrer"
+				className="mr-5 text-muted-foreground text-sm transition-colors hover:text-foreground hover:underline"
+			>
+				Docs
+			</Link>
 			{/* 👤 User dropdown */}
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>

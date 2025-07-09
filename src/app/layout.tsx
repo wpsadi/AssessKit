@@ -26,7 +26,7 @@ export default function RootLayout({
 			<body>
 				<WebsiteNoticeDialog />
 				<Providers>{children}</Providers>
-				<Footer />
+				{/* <Footer /> */}
 			</body>
 		</html>
 	);

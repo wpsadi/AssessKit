@@ -100,8 +100,8 @@ export default function DashboardPage() {
 					</div>
 					<CreateEventDialog>
 						<Button size="lg">
-							<Plus className="mr-2 h-4 w-4" />
-							Create Event
+							<Plus className=" h-4 w-4" />
+							<span className="hidden md:mr-2 md:inline">Create Event</span>
 						</Button>
 					</CreateEventDialog>
 				</div>
