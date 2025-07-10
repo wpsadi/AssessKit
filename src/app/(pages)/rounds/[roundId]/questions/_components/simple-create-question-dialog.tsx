@@ -199,6 +199,16 @@ export function SimpleCreateQuestionDialog({
 							</AlertDescription>
 						</Alert>
 
+						{round.useEventDuration && (
+							<Alert className="mb-4">
+								<AlertDescription>
+									This round uses the full event duration.{" "}
+									<b>Each question can use up to the full event duration.</b> The
+									time limit is <b>not cumulative</b> across questions.
+								</AlertDescription>
+							</Alert>
+						)}
+
 						<div className="grid gap-2">
 							<Label htmlFor="questionId">Question ID *</Label>
 							<Textarea
