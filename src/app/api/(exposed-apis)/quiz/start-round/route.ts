@@ -60,18 +60,7 @@ export async function POST(request: NextRequest) {
 			.eq("id", eventId)
 			.single();
 
-		if (eventError) {
-			console.error("Error fetching event:", eventError);
-			return NextResponse.json(
-				{
-					error: "Failed to fetch event or event not found",
-					errmsg: eventError.message,
-				},
-				{ status: 500 },
-			);
-		}
-
-		if (!event) {
+		if (!event || eventError) {
 			return NextResponse.json(
 				{
 					error: "Event not found",

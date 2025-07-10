@@ -39,6 +39,16 @@ export async function middleware(request: NextRequest) {
 			response.headers.set(key, value);
 		});
 
+		// Check for "error" field in JSON response and add "message" field
+		const clonedResponse = response.clone();
+		const responseBody = await clonedResponse.json().catch(() => null);
+		if (responseBody?.error) {
+			responseBody.message = responseBody.error;
+			return NextResponse.json(responseBody, {
+				headers: response.headers,
+			});
+		}
+
 		return response;
 	}
 	return await updateSession(request);
