@@ -1,8 +1,15 @@
-import { updateSession } from "@/utils/supabase/middleware";
 import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-	return await updateSession(request);
+	const response = new Response(null, {
+		headers: {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		},
+	});
+	// Return the response with CORS headers
+	return response;
 }
 
 export const config = {
@@ -17,3 +24,4 @@ export const config = {
 		"/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };
+		
