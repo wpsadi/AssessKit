@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
 		if (sessionError || !session || !session.round_id) {
 			return NextResponse.json(
 				{
-					error: "No active session found. Please start a round first.",
+					error:
+						"No active session found. Please start a round first.",
 				},
 				{ status: 404 },
 			);
@@ -143,7 +144,8 @@ export async function POST(request: NextRequest) {
 			if (moreRounds && moreRounds.length > 0) {
 				return NextResponse.json(
 					{
-						error: "This round is over. Please move to the next round.",
+						error:
+							"This round is over. Please move to the next round.",
 						roundStatus: "over",
 						nextStep: "start-next-round",
 					},
@@ -178,39 +180,21 @@ export async function POST(request: NextRequest) {
 		if (!question) {
 			return NextResponse.json(
 				{
-					error: `Question \"${questionId}\" not found in the active round`,
+					error:
+						`Question \"${questionId}\" not found in the active round`,
 				},
 				{ status: 404 },
 			);
 		}
 
-		if (question.order_index !== answeredQuestions.length) {
-			return NextResponse.json(
-				{
-					error: "Questions must be answered in order.",
-					expectedQuestionOrder: answeredQuestions.length,
-					submittedQuestionOrder: question.order_index,
-				},
-				{ status: 409 },
-			);
-		}
-
-		if (session.current_question_id !== question.id) {
-			return NextResponse.json(
-				{
-					error:
-						"This is not the current question. Please answer questions in order.",
-					expectedQuestionId: session.current_question_id,
-					submittedQuestionId: question.id,
-				},
-				{ status: 409 },
-			);
-		}
+		// Remove order validation - allow questions to be answered in any order
+		// Remove current question validation - allow any question to be answered
 
 		if (!session.question_started_at) {
 			return NextResponse.json(
 				{
-					error: "Session does not have a valid start time for the question.",
+					error:
+						"Session does not have a valid start time for the question.",
 				},
 				{ status: 500 },
 			);
@@ -288,7 +272,9 @@ export async function POST(request: NextRequest) {
 			.update({
 				is_on_question: !!nextQuestion,
 				current_question_id: nextQuestion ? nextQuestion.id : null,
-				question_started_at: nextQuestion ? new Date().toISOString() : null,
+				question_started_at: nextQuestion
+					? new Date().toISOString()
+					: null,
 				total_questions_answered:
 					Number(session.total_questions_answered || 0) + 1,
 			})
