@@ -61,9 +61,10 @@ export async function POST(request: NextRequest) {
 			.single();
 
 		if (eventError) {
+			console.error("Error fetching event:", eventError);
 			return NextResponse.json(
 				{
-					error: "Failed to fetch event",
+					error: "Failed to fetch event or event not found",
 					errmsg: eventError.message,
 				},
 				{ status: 500 },
