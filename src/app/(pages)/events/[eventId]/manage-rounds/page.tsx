@@ -121,8 +121,7 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 						</p>
 						{totalEventDuration > 0 && (
 							<p className="mt-1 text-muted-foreground text-sm">
-								Each round must use between 1 and{" "}
-								{formatTime(Math.max(1, remainingDuration))}.
+								Each round must use between 1m and {formatTime(totalEventDuration)}.
 							</p>
 						)}
 					</div>
