@@ -1,15 +1,17 @@
+import { updateSession } from "@/utils/supabase/middleware";
 import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-	const response = new Response(null, {
-		headers: {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type, Authorization",
-		},
-	});
-	// Return the response with CORS headers
-	return response;
+	const headers = request.headers;
+	if (
+		request.nextUrl.pathname.startsWith("/api") &&
+		!request.nextUrl.pathname.startsWith("/api/trpc")
+	) {
+		headers.set("Access-Control-Allow-Origin", "*");
+		headers.set("Access-Control-Allow-Methods", "*");
+		headers.set("Access-Control-Allow-Headers", "*");
+	}
+	return await updateSession(request);
 }
 
 export const config = {
@@ -24,4 +26,3 @@ export const config = {
 		"/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };
-		
