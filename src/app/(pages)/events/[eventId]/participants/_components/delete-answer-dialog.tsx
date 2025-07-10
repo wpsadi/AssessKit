@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 import type React from "react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,10 +31,13 @@ export function DeleteAnswerDialog({
 	children,
 }: DeleteAnswerDialogProps) {
 	const [open, setOpen] = useState(false);
+	const queryClient = useQueryClient();
 
 	const deleteResponseMutation = api.responses.delete.useMutation({
 		onSuccess: () => {
 			toast.success("Answer deleted successfully!");
+			// Invalidate all responses queries since we don't have specific context
+			queryClient.invalidateQueries({ queryKey: queryKeys.responses.all() });
 			onSuccess?.();
 			setOpen(false);
 		},

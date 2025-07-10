@@ -122,6 +122,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Participant } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -140,6 +142,7 @@ export function DeleteParticipantDialog({
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const deleteParticipant = api.participants.delete.useMutation({
 		onMutate: () => {
 			toast.loading("Deleting participant...", {
@@ -148,6 +151,8 @@ export function DeleteParticipantDialog({
 		},
 		onSuccess: (result) => {
 			if (result.success) {
+				// Use centralized invalidation helper for participants
+				invalidateEntityQueries.participants(queryClient, participant.eventId, participant.id);
 				setOpen(false);
 				toast.success("Participant deleted successfully!", {
 					id: toastId,

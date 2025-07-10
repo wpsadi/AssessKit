@@ -3,7 +3,6 @@
  * Provides consistent, unique query keys with hash-like properties
  */
 
-import { createHash } from "node:crypto";
 import type { QueryClient } from "@tanstack/react-query";
 
 // Base query key factory
@@ -156,17 +155,26 @@ export const queryKeys = {
 
 /**
  * Creates a unique hash-like key for query caching
- * Uses SHA-256 to ensure uniqueness and consistency
+ * Uses a simple hash function that works in Edge Runtime
  */
 function createQueryHash(
     prefix: string,
     data: Record<string, unknown>,
 ): string {
     const serialized = JSON.stringify(data, Object.keys(data).sort());
-    const hash = createHash("sha256").update(`${prefix}:${serialized}`).digest(
-        "hex",
-    );
-    return `${prefix}-${hash.substring(0, 16)}`;
+    const fullString = `${prefix}:${serialized}`;
+
+    // Simple hash function that works in Edge Runtime
+    let hash = 0;
+    for (let i = 0; i < fullString.length; i++) {
+        const char = fullString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+
+    // Convert to positive number and then to hex
+    const hashHex = Math.abs(hash).toString(16);
+    return `${prefix}-${hashHex.padStart(8, "0")}`;
 }
 
 /**

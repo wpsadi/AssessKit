@@ -32,6 +32,8 @@ import { toast } from "sonner";
 
 import type { Event, Round } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { DeleteRoundDialog } from "./delete-round-dialog";
 
 interface Props {
@@ -41,7 +43,21 @@ interface Props {
 
 export function EnhancedRoundEditor({ round, event }: Props) {
 	const router = useRouter();
-	const updateRound = api.rounds.updateRound.useMutation();
+	const queryClient = useQueryClient();
+	const updateRound = api.rounds.updateRound.useMutation({
+		onSuccess: () => {
+			// Use centralized invalidation helper for rounds
+			invalidateEntityQueries.rounds(queryClient, event.id, round.id);
+			setIsEditing(false);
+			setIsLoading(false);
+			toast.success("Round updated successfully");
+		},
+		onError: (error) => {
+			console.error("Error updating round:", error);
+			toast.error("Failed to update round");
+			setIsLoading(false);
+		},
+	});
 
 	const [isEditing, setIsEditing] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);

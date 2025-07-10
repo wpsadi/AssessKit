@@ -36,9 +36,12 @@ export function CreateParticipantDialog({
 	const [email, setEmail] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState("");
+	const queryClient = useQueryClient();
 
 	const createParticipantMutation = api.participants.create.useMutation({
 		onSuccess: () => {
+			// Use centralized invalidation helper for participants
+			invalidateEntityQueries.participants(queryClient, eventId);
 			setOpen(false);
 			resetForm();
 			onSuccess?.();

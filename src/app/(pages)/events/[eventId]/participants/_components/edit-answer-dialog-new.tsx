@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { AppRouter } from "@/server/api/root";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import type { inferRouterOutputs } from "@trpc/server";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -44,10 +46,13 @@ export function EditAnswerDialog({
 	const [pointsEarned, setPointsEarned] = useState(answer.pointsEarned);
 	const [isCorrect, setIsCorrect] = useState(answer.isCorrect);
 	const [timeTaken, setTimeTaken] = useState(answer.timeTaken || 0);
+	const queryClient = useQueryClient();
 
 	const updateResponseMutation = api.responses.update.useMutation({
 		onSuccess: () => {
 			toast.success("Answer updated successfully!");
+			// Use centralized invalidation helper for responses
+			invalidateEntityQueries.responses(queryClient, participantId, answer.questionId, answer.roundId);
 			onSuccess?.();
 			setOpen(false);
 		},

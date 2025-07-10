@@ -22,6 +22,8 @@ import {
 import type React from "react";
 
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import {
 	AlertCircle,
 	CheckCircle,
@@ -59,6 +61,7 @@ export default function CSVImportWidget({
 	const { width, height } = useWindowSize();
 	const { eventId } = useParams<{ eventId: string }>();
 	const bulkInsertionHook = api.participants.bulkCreate.useMutation();
+	const queryClient = useQueryClient();
 
 	const [isOpen, setIsOpen] = useState(false);
 	const [csvData, setCsvData] = useState<CSVRow[]>([]);
@@ -217,6 +220,9 @@ export default function CSVImportWidget({
 				});
 
 				if (result.success) {
+					// Use centralized invalidation helper for participants
+					invalidateEntityQueries.participants(queryClient, eventId);
+
 					// Show confetti
 					setShowConfetti(true);
 					setTimeout(() => setShowConfetti(false), 5000);
@@ -291,11 +297,10 @@ export default function CSVImportWidget({
 						{/* Upload Area */}
 						{csvData.length === 0 && (
 							<div
-								className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-									isDragOver
+								className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${isDragOver
 										? "border-primary bg-primary/5"
 										: "border-muted-foreground/25 hover:border-muted-foreground/50"
-								}`}
+									}`}
 								onDrop={handleDrop}
 								onDragOver={(e) => {
 									e.preventDefault();

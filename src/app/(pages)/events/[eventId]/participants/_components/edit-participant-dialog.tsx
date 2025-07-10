@@ -137,6 +137,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { Participant } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -155,9 +157,12 @@ export function EditParticipantDialog({
 	const [isActive, setIsActive] = useState(participant.isActive);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	const updateParticipant = api.participants.update.useMutation({
 		onSuccess: () => {
+			// Use centralized invalidation helper for participants
+			invalidateEntityQueries.participants(queryClient, participant.eventId, participant.id);
 			setOpen(false);
 			setError(null);
 			router.refresh();

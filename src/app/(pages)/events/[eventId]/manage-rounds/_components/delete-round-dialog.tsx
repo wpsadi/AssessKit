@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Round } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -26,10 +28,13 @@ interface DeleteRoundDialogProps {
 export function DeleteRoundDialog({ round, children }: DeleteRoundDialogProps) {
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	const deleteRound = api.rounds.deleteRound.useMutation({
 		onSuccess: (result) => {
 			if (result.success) {
+				// Use centralized invalidation helper for rounds
+				invalidateEntityQueries.rounds(queryClient, round.eventId, round.id);
 				setOpen(false);
 				router.refresh();
 				// Add success toast

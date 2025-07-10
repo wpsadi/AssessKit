@@ -13,6 +13,8 @@ import {
 import { FloatingSaveBar } from "@/components/ui/floating-save-bar";
 import type { Round } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { Clock, GripVertical, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
@@ -43,6 +45,7 @@ export function RoundSortableList({
 	const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 	const [isSaving, setIsSaving] = useState(false);
 	const skipNextSyncRef = useRef(false);
+	const queryClient = useQueryClient();
 
 	const reorderRoundsMutation = api.rounds.reorderRounds.useMutation({
 		onSuccess: () => {
@@ -51,6 +54,9 @@ export function RoundSortableList({
 			setIsSaving(false);
 			setHasChanges(false);
 			toast.success("Round order updated successfully");
+
+			// Use centralized invalidation helper for rounds
+			invalidateEntityQueries.rounds(queryClient, eventId);
 
 			// Delay the refresh to ensure server has processed changes
 			setTimeout(() => {
@@ -185,9 +191,8 @@ export function RoundSortableList({
 				{rounds.map((round, index: number) => (
 					<Card
 						key={round.id}
-						className={`cursor-move transition-all duration-200 hover:shadow-md ${
-							draggedIndex === index ? "scale-95 opacity-50" : ""
-						}`}
+						className={`cursor-move transition-all duration-200 hover:shadow-md ${draggedIndex === index ? "scale-95 opacity-50" : ""
+							}`}
 						draggable
 						onDragStart={(e) => handleDragStart(e, index)}
 						onDragEnd={handleDragEnd}

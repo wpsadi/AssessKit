@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Event, Round } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import {
 	AlertTriangle,
 	Clock,
@@ -48,9 +50,12 @@ export function SimpleRoundEditor({ round, event }: SimpleRoundEditorProps) {
 	const [endTime, setEndTime] = useState("");
 
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	const updateRound = api.rounds.updateRound.useMutation({
 		onSuccess: () => {
+			// Use centralized invalidation helper for rounds
+			invalidateEntityQueries.rounds(queryClient, round.eventId, round.id);
 			setIsEditing(false);
 			router.refresh();
 		},
@@ -82,12 +87,12 @@ export function SimpleRoundEditor({ round, event }: SimpleRoundEditorProps) {
 	const derivedTimeLimit =
 		startTime && endTime
 			? Math.max(
-					0,
-					Math.floor(
-						(new Date(endTime).getTime() - new Date(startTime).getTime()) /
-							60000,
-					),
-				)
+				0,
+				Math.floor(
+					(new Date(endTime).getTime() - new Date(startTime).getTime()) /
+					60000,
+				),
+			)
 			: eventDuration;
 
 	const effectiveTimeLimit = useEventDuration
