@@ -5,6 +5,8 @@ import type React from "react";
 import { FloatingSaveBar } from "@/components/ui/floating-save-bar";
 import type { Event, Question, Round } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -29,6 +31,7 @@ export function SimpleQuestionEditorList({
 	);
 	const [hasOrderChanges, setHasOrderChanges] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
+	const queryClient = useQueryClient();
 
 	// Get fresh questions data but don't use it for display
 	const { isLoading: isLoadingQuestions, refetch: refetchQuestions } =
@@ -44,6 +47,8 @@ export function SimpleQuestionEditorList({
 		onSuccess: () => {
 			setHasOrderChanges(false);
 			toast.success("Question order updated successfully");
+			// Use centralized invalidation helper for questions
+			invalidateEntityQueries.questions(queryClient, round.id);
 			onUpdate?.();
 		},
 		onError: (error) => {

@@ -81,9 +81,10 @@ export async function POST(request: NextRequest) {
 		if (participantError || !participant) {
 			console.error("Participant not found or error:", participantError);
 			return NextResponse.json(
-				{ error: "Invalid credentials or event not found",
-					message: "Invalid credentials or event not found"
-				 },
+				{
+					error: "Invalid credentials or event not found",
+					message: "Invalid credentials or event not found",
+				},
 				{ status: 401 },
 			);
 		}

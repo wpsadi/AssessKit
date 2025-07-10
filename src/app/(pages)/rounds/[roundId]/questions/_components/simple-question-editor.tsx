@@ -33,6 +33,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DeleteQuestionDialog } from "./delete-question-dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, invalidateEntityQueries } from "@/lib/query-keys";
 
 interface SimpleQuestionEditorProps {
 	question: Question;
@@ -67,6 +69,7 @@ export function SimpleQuestionEditor({
 	}>({});
 
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	// Generate stable keys for answer inputs
 	const answerKeys = useMemo(() => {
@@ -88,6 +91,8 @@ export function SimpleQuestionEditor({
 		onSuccess: (updatedQuestion) => {
 			setIsEditing(false);
 			toast.success("Question updated successfully");
+			// Use centralized invalidation helper for questions
+			invalidateEntityQueries.questions(queryClient, round.id, updatedQuestion?.id);
 			if (updatedQuestion) {
 				onUpdate?.(updatedQuestion);
 			}
@@ -301,8 +306,8 @@ export function SimpleQuestionEditor({
 								<Alert className="mb-4">
 									<AlertDescription>
 										This round uses the full event duration.{" "}
-										<b>Each question can use up to the full event duration.</b> The time limit is{" "}
-										<b>not cumulative</b> across questions.
+										<b>Each question can use up to the full event duration.</b>{" "}
+										The time limit is <b>not cumulative</b> across questions.
 									</AlertDescription>
 								</Alert>
 							)}

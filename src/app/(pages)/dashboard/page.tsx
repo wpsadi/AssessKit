@@ -16,6 +16,7 @@ export default function DashboardPage() {
 	} = api.events.getEvents.useQuery(undefined, {
 		refetchInterval: 30000, // Refetch every 30 seconds
 		refetchOnWindowFocus: true,
+		queryHash: "getEvents",
 		retry: 0,
 	});
 

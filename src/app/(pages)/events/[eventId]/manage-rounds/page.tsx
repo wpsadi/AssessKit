@@ -30,6 +30,7 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 		api.events.getEvents.useQuery(undefined, {
 			refetchInterval: 10000,
 			retry: 0,
+			queryHash: "getEvents",
 		});
 
 	const {
@@ -42,6 +43,7 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 			enabled: !!eventId,
 			refetchInterval: 10000,
 			retry: 0,
+			queryHash: `getPublicRounds-${eventId}`, // Unique key for this query
 		},
 	);
 
@@ -50,10 +52,10 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 	const totalEventDuration =
 		event?.startDate && event.endDate
 			? Math.round(
-				(new Date(event.endDate).getTime() -
-					new Date(event.startDate).getTime()) /
-				(1000 * 60),
-			)
+					(new Date(event.endDate).getTime() -
+						new Date(event.startDate).getTime()) /
+						(1000 * 60),
+				)
 			: event?.durationMinutes || 0;
 
 	const usedDuration =
@@ -121,7 +123,8 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 						</p>
 						{totalEventDuration > 0 && (
 							<p className="mt-1 text-muted-foreground text-sm">
-								Each round must use between 1m and {formatTime(totalEventDuration)}.
+								Each round must use between 1m and{" "}
+								{formatTime(totalEventDuration)}.
 							</p>
 						)}
 					</div>

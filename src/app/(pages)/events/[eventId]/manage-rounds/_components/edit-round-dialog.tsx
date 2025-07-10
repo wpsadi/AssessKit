@@ -16,10 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
+import { invalidateEntityQueries, queryKeys } from "@/lib/query-keys";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Round {
 	id: string;
@@ -43,8 +45,8 @@ interface EditRoundDialogProps {
 
 export function EditRoundDialog({
 	round,
-	onSuccess,
 	children,
+	onSuccess,
 	totalEventDuration,
 }: EditRoundDialogProps) {
 	const [open, setOpen] = useState(false);
@@ -60,15 +62,26 @@ export function EditRoundDialog({
 	);
 
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	const allRounds = api.rounds.getPublicRounds.useQuery(
 		{ eventId: round.eventId },
-		{ enabled: !!round.eventId },
+		{
+			enabled: !!round.eventId,
+			queryHash: `getPublicRounds-${round.eventId}`,
+		},
 	);
 
 	const updateRoundMutation = api.rounds.updateRound.useMutation({
 		onSuccess: () => {
 			toast.success("Round updated successfully");
+			// Invalidate relevant queries for smooth UI updates
+			queryClient.invalidateQueries({
+				queryKey: ["rounds", "getPublicRounds", round.eventId],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["rounds", "getRound"],
+			});
 			onSuccess();
 			setOpen(false);
 			router.refresh();
@@ -102,7 +115,8 @@ export function EditRoundDialog({
 		: customTimeLimit;
 	const totalAfterEdit = proposedDuration + otherRoundsDuration;
 	const maxAvailable = totalEventDuration - otherRoundsDuration;
-	const limitExceeded = !useEventDuration && totalAfterEdit > totalEventDuration;
+	const limitExceeded =
+		!useEventDuration && totalAfterEdit > totalEventDuration;
 
 	const validateForm = () => {
 		const newErrors: { title?: string; timeLimit?: string } = {};
@@ -243,7 +257,9 @@ export function EditRoundDialog({
 						<Button
 							type="submit"
 							disabled={
-								isLoading || updateRoundMutation.isPending || (!useEventDuration && limitExceeded)
+								isLoading ||
+								updateRoundMutation.isPending ||
+								(!useEventDuration && limitExceeded)
 							}
 						>
 							{isLoading || updateRoundMutation.isPending

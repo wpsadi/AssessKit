@@ -21,6 +21,7 @@ export function UserNav() {
 	const user = api.user.getUser.useQuery(undefined, {
 		refetchInterval: 1000 * 10,
 		retry: 0,
+		queryHash: "getUser",
 	});
 
 	const signOut = api.user.signOut.useMutation({});

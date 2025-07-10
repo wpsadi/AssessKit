@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -50,7 +51,8 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 	const updateEvent = api.events.updateEvent.useMutation({
 		onSuccess: () => {
 			toast.success("Event updated successfully");
-			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
+			// Use centralized invalidation helper for events
+			invalidateEntityQueries.events(queryClient, event.id);
 			setOpen(false);
 			router.refresh();
 		},

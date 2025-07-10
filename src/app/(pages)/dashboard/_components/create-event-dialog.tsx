@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -32,12 +33,14 @@ export function CreateEventDialog({ children }: CreateEventDialogProps) {
 	const toastId = useId();
 
 	const createEvent = api.events.createEvent.useMutation({
+		mutationKey: ["events", "createEvent"],
 		onMutate: () => {
 			toast.loading("Creating event...", { id: toastId });
 		},
 		onSuccess: (data) => {
 			toast.success("Event created successfully!", { id: toastId });
-			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
+			// Use centralized invalidation helper for events
+			invalidateEntityQueries.events(queryClient);
 			setOpen(false);
 			router.refresh();
 		},

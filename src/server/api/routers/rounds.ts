@@ -155,7 +155,8 @@ export const roundsRouter = createTRPCRouter({
 			const { orderIndex, ...roundData } = input;
 
 			// If no order specified, get the next available order
-			const maxOrder = orderIndex ??
+			const maxOrder =
+				orderIndex ??
 				(await ctx.db
 					.select({ maxOrder: max(rounds.orderIndex) })
 					.from(rounds)
@@ -286,7 +287,7 @@ export const roundsRouter = createTRPCRouter({
 					tx
 						.update(rounds)
 						.set({ orderIndex: round.orderIndex })
-						.where(eq(rounds.id, round.id))
+						.where(eq(rounds.id, round.id)),
 				);
 
 				await Promise.all(updatePromises);

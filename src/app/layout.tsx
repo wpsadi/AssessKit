@@ -9,7 +9,8 @@ import Providers from "./providers";
 
 export const metadata: Metadata = {
 	title: "AssessKit",
-	description: "AssessKit is a lightweight, headless quiz engine designed for secure, structured, and timed assessments. It gives you full control over content, flow, and scoring logic — while exposing just a few clean API endpoints.",
+	description:
+		"AssessKit is a lightweight, headless quiz engine designed for secure, structured, and timed assessments. It gives you full control over content, flow, and scoring logic — while exposing just a few clean API endpoints.",
 	icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

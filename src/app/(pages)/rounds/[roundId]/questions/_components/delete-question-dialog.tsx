@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import type { Question } from "@/lib/types";
 import { api } from "@/trpc/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,11 +32,14 @@ export function DeleteQuestionDialog({
 	onSuccess,
 }: DeleteQuestionDialogProps) {
 	const [open, setOpen] = useState(false);
+	const queryClient = useQueryClient();
 
 	// TRPC mutation for deleting questions
 	const deleteQuestionMutation = api.questions.delete.useMutation({
 		onSuccess: () => {
 			toast.success("Question deleted successfully!");
+			// Use centralized invalidation helper for questions
+			invalidateEntityQueries.questions(queryClient, question.roundId, question.id);
 			setOpen(false);
 			onSuccess?.();
 		},

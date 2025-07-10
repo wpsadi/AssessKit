@@ -22,6 +22,8 @@ import { useRouter } from "next/navigation";
 import type React from "react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, invalidateEntityQueries } from "@/lib/query-keys";
 
 interface AnswerIdItem {
 	id: string;
@@ -55,12 +57,15 @@ export function SimpleCreateQuestionDialog({
 	}>({});
 
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	const createQuestion = api.questions.create.useMutation({
 		onSuccess: () => {
 			setOpen(false);
 			resetForm();
 			toast.success("Question created successfully");
+			// Use centralized invalidation helper for questions
+			invalidateEntityQueries.questions(queryClient, round.id);
 			onSuccess?.();
 			router.refresh();
 		},
@@ -203,8 +208,8 @@ export function SimpleCreateQuestionDialog({
 							<Alert className="mb-4">
 								<AlertDescription>
 									This round uses the full event duration.{" "}
-									<b>Each question can use up to the full event duration.</b> The
-									time limit is <b>not cumulative</b> across questions.
+									<b>Each question can use up to the full event duration.</b>{" "}
+									The time limit is <b>not cumulative</b> across questions.
 								</AlertDescription>
 							</Alert>
 						)}

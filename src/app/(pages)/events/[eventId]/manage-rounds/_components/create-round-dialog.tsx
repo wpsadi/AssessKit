@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
+import { invalidateEntityQueries, queryKeys } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -44,11 +46,18 @@ export function CreateRoundDialog({
 
 	const eventInfo = api.events.getEvent.useQuery(
 		{ id: eventId },
-		{ enabled: !!eventId },
+		{
+			enabled: !!eventId,
+			queryHash: `getEvent-${eventId}`,
+		},
+
 	);
 	const rounds = api.rounds.getPublicRounds.useQuery(
 		{ eventId },
-		{ enabled: !!eventId },
+		{
+			enabled: !!eventId,
+			queryHash: `getPublicRounds-${eventId}`,
+		},
 	);
 
 	// Remove cumulative sum/remaining time logic for useEventDuration
@@ -61,10 +70,12 @@ export function CreateRoundDialog({
 		}, 0) || 0;
 
 	const remainingDuration = totalEventDuration - actualUsedDuration;
-
+	const queryClient = useQueryClient();
 	const createRoundMutation = api.rounds.createRound.useMutation({
 		onSuccess: () => {
 			toast.success("Round created successfully");
+			// Use centralized invalidation helper for rounds
+			invalidateEntityQueries.rounds(queryClient, eventId);
 			setOpen(false);
 			resetForm();
 			onSuccess?.();
@@ -255,7 +266,9 @@ export function CreateRoundDialog({
 							type="submit"
 							disabled={
 								createRoundMutation.isPending ||
-								(!useEventDuration && totalEventDuration > 0 && remainingDuration <= 0)
+								(!useEventDuration &&
+									totalEventDuration > 0 &&
+									remainingDuration <= 0)
 							}
 						>
 							{createRoundMutation.isPending ? "Creating..." : "Create Round"}

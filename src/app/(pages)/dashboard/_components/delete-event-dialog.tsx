@@ -13,7 +13,8 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/trpc/react";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { invalidateEntityQueries } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -35,7 +36,8 @@ export function DeleteEventDialog({ event, children }: DeleteEventDialogProps) {
 	const deleteEvent = api.events.deleteEvent.useMutation({
 		onSuccess: () => {
 			toast.success("Event deleted successfully");
-			queryClient.invalidateQueries({ queryKey: ["events", "getEvents"] });
+			// Use centralized invalidation helper for events
+			invalidateEntityQueries.events(queryClient, event.id);
 			setOpen(false);
 			router.refresh();
 		},
