@@ -1,29 +1,74 @@
-# Create T3 App
+# 🧠 AssessKit
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+**AssessKit** is a secure, API-first, headless quiz engine that gives you full control over how quizzes are run, timed, scored, and managed. With just **5 public endpoints**, you can build anything — from competitive exams to classroom assessments — while keeping question content, delivery, and UI fully under your control.
 
-## What's next? How do I make an app with this?
+---
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+## 🚀 Features
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+- ✅ **5-endpoint protocol** for simplicity and consistency  
+- 🔐 **Strict flow control** — no skipping ahead or double submissions  
+- ⏱️ **Round-based timing** with precision scoring  
+- 📦 **Import/export participants** easily  
+- 🔄 **Admin tools** for editing responses and generating leaderboards  
+- 🧩 **Bring your own content** — you handle question assets, we handle evaluation  
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+---
 
-## Learn More
+## 📦 Core Concepts
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- **Event** → The top-level quiz container  
+- **Round** → A timed section within an event  
+- **Question** → Referenced by `questionId`, stored and rendered separately (not in AssessKit)  
+- **Participant** → Unique per event, identified by login credentials (imported in advance)  
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+---
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+## 🔌 Public API Endpoints (5 Only)
 
-## How do I deploy this?
+| Endpoint                     | Method | Description                                                       |
+|-----------------------------|--------|-------------------------------------------------------------------|
+| `/participant/login`        | POST   | Authenticates a participant, returns a token                      |
+| `/participant/verify`       | POST   | Verifies token/session status                                     |
+| `/quiz/start-round`  | POST   | Begins round and starts timer                                     |
+| `/quiz/current-question` | GET | Returns current `questionId` and timing info                      |
+| `/quiz/submit-answer`| POST   | Submits an answer (empty string `""` = skip)                      |
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+🔐 **Rules Enforced:**
+- Must answer **only the current question**
+- **No revisiting** or re-answering
+- **One-time submission** per question
+- Skipping = submit `""` as the answer
+
+---
+
+## ⚙️ Admin Dashboard Features
+
+- ✅ Create/edit events and rounds  
+- ✅ Set question order and scoring schema  
+- ✅ Control round start/end timings  
+- ✅ Import/export participants via CSV  
+- ✅ View and update individual responses  
+- ✅ Auto-generate leaderboards  
+
+---
+
+## 🧪 Integration Philosophy
+
+AssessKit doesn’t store or serve your question content. You can load questions however you want — from your own CMS, static file, or database — using the `questionId` provided by the API.
+
+You bring the UI and question data.  
+**AssessKit handles flow control, timing, and evaluation.**
+
+---
+
+## 📫 Contact / Support
+
+Need help or want to contribute?
+
+📧 Email: `wpsadi@outloook.com`  
+🌐 Website / Docs: [AssessKit Docs](https://documenter.getpostman.com/view/30455760/2sB34co2QR)
+
+---
+
+> _AssessKit — Secure Quizzing. Your Rules._
