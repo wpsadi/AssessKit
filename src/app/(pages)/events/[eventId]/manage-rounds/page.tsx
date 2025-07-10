@@ -50,10 +50,10 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 	const totalEventDuration =
 		event?.startDate && event.endDate
 			? Math.round(
-					(new Date(event.endDate).getTime() -
-						new Date(event.startDate).getTime()) /
-						(1000 * 60),
-				)
+				(new Date(event.endDate).getTime() -
+					new Date(event.startDate).getTime()) /
+				(1000 * 60),
+			)
 			: event?.durationMinutes || 0;
 
 	const usedDuration =
@@ -96,21 +96,6 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 								Manage rounds and questions
 							</p>
 						</div>
-
-						{totalEventDuration > 0 && (
-							<div className="text-right">
-								<div className="flex items-center gap-2 text-sm">
-									<Clock className="h-4 w-4" />
-									<span className="font-medium">
-										{formatTime(usedDuration)} /{" "}
-										{formatTime(totalEventDuration)} used
-									</span>
-								</div>
-								<p className="text-muted-foreground text-xs">
-									{formatTime(remainingDuration)} remaining
-								</p>
-							</div>
-						)}
 					</div>
 				</div>
 			</header>
@@ -127,17 +112,6 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 				)}
 
 				<EventIdCopy />
-
-				{totalEventDuration > 0 && usedDuration > totalEventDuration && (
-					<Alert variant="destructive" className="mb-6">
-						<AlertCircle className="h-4 w-4" />
-						<AlertDescription>
-							You have exceeded the total event duration by{" "}
-							{formatTime(usedDuration - totalEventDuration)}. Adjust your
-							rounds or extend the event duration.
-						</AlertDescription>
-					</Alert>
-				)}
 
 				<div className="mb-8 flex items-center justify-between">
 					<div>
