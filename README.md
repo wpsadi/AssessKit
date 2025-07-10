@@ -29,7 +29,7 @@
 | Endpoint                     | Method | Description                                                       |
 |-----------------------------|--------|-------------------------------------------------------------------|
 | `/participant/login`        | POST   | Authenticates a participant, returns a token                      |
-| `/participant/verify`       | POST   | Verifies token/session status                                     |
+| `/participant/verify`       | GET   | Verifies token/session status                                     |
 | `/quiz/start-round`  | POST   | Begins round and starts timer                                     |
 | `/quiz/current-question` | GET | Returns current `questionId` and timing info                      |
 | `/quiz/submit-answer`| POST   | Submits an answer (empty string `""` = skip)                      |
