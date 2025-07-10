@@ -89,10 +89,12 @@ export function EditRoundDialog({
 		}
 	}, [open, round]);
 
+	// Remove cumulative sum/remaining time logic for useEventDuration
 	const otherRoundsDuration =
 		allRounds.data?.reduce((sum, r) => {
 			if (r.id === round.id) return sum;
-			return sum + (r.useEventDuration ? totalEventDuration : r.timeLimit || 0);
+			if (r.useEventDuration) return sum; // Don't sum event duration for rounds using event duration
+			return sum + (r.timeLimit || 0);
 		}, 0) || 0;
 
 	const proposedDuration = useEventDuration
@@ -100,7 +102,7 @@ export function EditRoundDialog({
 		: customTimeLimit;
 	const totalAfterEdit = proposedDuration + otherRoundsDuration;
 	const maxAvailable = totalEventDuration - otherRoundsDuration;
-	const limitExceeded = totalAfterEdit > totalEventDuration;
+	const limitExceeded = !useEventDuration && totalAfterEdit > totalEventDuration;
 
 	const validateForm = () => {
 		const newErrors: { title?: string; timeLimit?: string } = {};
@@ -115,12 +117,8 @@ export function EditRoundDialog({
 			} else if (limitExceeded) {
 				newErrors.timeLimit = `You can use at most ${maxAvailable} minute(s)`;
 			}
-		} else {
-			if (limitExceeded) {
-				newErrors.timeLimit = `Using full event duration exceeds limit. You can use at most ${maxAvailable} minute(s)`;
-			}
 		}
-
+		// No else: allow multiple useEventDuration rounds
 		setErrors(newErrors);
 		return Object.keys(newErrors).length === 0;
 	};
@@ -245,7 +243,7 @@ export function EditRoundDialog({
 						<Button
 							type="submit"
 							disabled={
-								isLoading || updateRoundMutation.isPending || limitExceeded
+								isLoading || updateRoundMutation.isPending || (!useEventDuration && limitExceeded)
 							}
 						>
 							{isLoading || updateRoundMutation.isPending

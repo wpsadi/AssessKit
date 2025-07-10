@@ -51,10 +51,11 @@ export function CreateRoundDialog({
 		{ enabled: !!eventId },
 	);
 
+	// Remove cumulative sum/remaining time logic for useEventDuration
 	const actualUsedDuration =
 		rounds.data?.reduce((sum, round) => {
 			if (round.useEventDuration) {
-				return sum + totalEventDuration;
+				return sum; // Don't sum event duration for rounds using event duration
 			}
 			return sum + (round.timeLimit || 0);
 		}, 0) || 0;
@@ -102,14 +103,8 @@ export function CreateRoundDialog({
 			} else if (timeLimitNum > remainingDuration) {
 				newErrors.timeLimit = `Duration cannot exceed ${formatTime(remainingDuration)} (remaining time)`;
 			}
-		} else {
-			if (totalEventDuration > remainingDuration) {
-				newErrors.timeLimit = `Using full event duration (${formatTime(
-					totalEventDuration,
-				)}) exceeds remaining time (${formatTime(remainingDuration)})`;
-			}
 		}
-
+		// No else: allow multiple useEventDuration rounds
 		setErrors(newErrors);
 		return Object.keys(newErrors).length === 0;
 	};
@@ -285,8 +280,7 @@ export function CreateRoundDialog({
 							type="submit"
 							disabled={
 								createRoundMutation.isPending ||
-								(totalEventDuration > 0 && remainingDuration <= 0) ||
-								(useEventDuration && totalEventDuration > remainingDuration)
+								(!useEventDuration && totalEventDuration > 0 && remainingDuration <= 0)
 							}
 						>
 							{createRoundMutation.isPending ? "Creating..." : "Create Round"}
