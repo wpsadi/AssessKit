@@ -134,7 +134,8 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 					>
 						<Button
 							size="lg"
-							disabled={totalEventDuration > 0 && remainingDuration <= 0}
+							// Always enabled
+							disabled={false}
 						>
 							<Plus className="mr-2 h-4 w-4" />
 							Create Round
@@ -157,7 +158,8 @@ export default function ManageRoundsPage({ params }: ManageRoundsPageProps) {
 							>
 								<Button
 									size="lg"
-									disabled={totalEventDuration > 0 && remainingDuration <= 0}
+									// Always enabled
+									disabled={false}
 								>
 									<Plus className="mr-2 h-4 w-4" />
 									Create Your First Round
