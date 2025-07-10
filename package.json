@@ -21,7 +21,7 @@
 		"supafunc:init": "supabase functions new",
 		"start": "next start",
 		"typecheck": "tsc --noEmit",
-		"db:clear":"dotenv -e .env -- tsx ./src/scripts/clear-db.ts",
+		"db:clear": "dotenv -e .env -- tsx ./src/scripts/clear-db.ts",
 		"db:triggers": "dotenv -e .env -- tsx ./src/scripts/runTriggers.ts"
 	},
 	"dependencies": {

@@ -1,0 +1,25 @@
+{
+    "servers": {
+        "supabase": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "dotenv-cli",
+                "-e",
+                ".env",
+                "--no-expand",
+                "--",
+                "npx",
+                "-y",
+                "@supabase/mcp-server-supabase@latest",
+                "--project-ref=\"${SUPABASE_PROJECT_ID}\"",
+                "--access-token=${SUPABASE_ACCESS_TOKEN}"
+            ],
+            "env": {
+                "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}",
+                "SUPABASE_PROJECT_ID": "${SUPABASE_PROJECT_ID}"
+            }
+        }
+    }
+}
