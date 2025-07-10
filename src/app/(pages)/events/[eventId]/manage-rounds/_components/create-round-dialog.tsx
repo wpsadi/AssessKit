@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -154,31 +154,6 @@ export function CreateRoundDialog({
 							<strong>Participants:</strong> {eventInfo.data.participantCount}
 						</p>
 					</div>
-				)}
-
-				{/* Duration Summary */}
-				{totalEventDuration > 0 && (
-					<div className="rounded-lg bg-muted p-3">
-						<div className="flex items-center gap-2 text-sm">
-							<Clock className="h-4 w-4" />
-							<span className="font-medium">Duration Summary</span>
-						</div>
-						<div className="mt-1 space-y-1 text-muted-foreground text-xs">
-							<p>Total event duration: {formatTime(totalEventDuration)}</p>
-							<p>Used duration: {formatTime(actualUsedDuration)}</p>
-							<p>Remaining: {formatTime(remainingDuration)}</p>
-						</div>
-					</div>
-				)}
-
-				{totalEventDuration > 0 && remainingDuration <= 0 && (
-					<Alert variant="destructive">
-						<AlertTriangle className="h-4 w-4" />
-						<AlertDescription>
-							No remaining time available. Please adjust existing rounds or
-							extend the event duration.
-						</AlertDescription>
-					</Alert>
 				)}
 
 				{/* Form */}
