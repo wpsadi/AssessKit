@@ -1,20 +1,45 @@
 import { updateSession } from "@/utils/supabase/middleware";
-import type { NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+
+const corsOptions = {
+	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
 
 export async function middleware(request: NextRequest) {
-	const headers = request.headers;
 	if (
 		request.nextUrl.pathname.startsWith("/api") &&
 		!request.nextUrl.pathname.startsWith("/api/trpc")
 	) {
-		const origin = headers.get("Origin") || "*";
-		headers.set("Access-Control-Allow-Origin", origin);
-		headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-		headers.set(
-			"Access-Control-Allow-Headers",
-			"Content-Type, Authorization",
-		);
-		// headers.set("Access-Control-Allow-Credentials", "true");
+		const origin = request.headers.get("origin") ?? "";
+
+		const isAllowedOrigin = true;
+
+		// Handle preflighted requests
+		const isPreflight = request.method === "OPTIONS";
+
+		if (isPreflight) {
+			const preflightHeaders = {
+				...(isAllowedOrigin &&
+					{ "Access-Control-Allow-Origin": origin }),
+				...corsOptions,
+			};
+			return NextResponse.json({}, { headers: preflightHeaders });
+		}
+
+		// Handle simple requests
+		const response = NextResponse.next();
+
+		if (isAllowedOrigin) {
+			response.headers.set("Access-Control-Allow-Origin", origin);
+		}
+
+		// biome-ignore lint/complexity/noForEach: <explanation>
+		Object.entries(corsOptions).forEach(([key, value]) => {
+			response.headers.set(key, value);
+		});
+
+		return response;
 	}
 	return await updateSession(request);
 }
