@@ -7,10 +7,14 @@ export async function middleware(request: NextRequest) {
 		request.nextUrl.pathname.startsWith("/api") &&
 		!request.nextUrl.pathname.startsWith("/api/trpc")
 	) {
-		headers.set("Access-Control-Allow-Origin", "*");
+		const origin = headers.get("Origin") || "*";
+		headers.set("Access-Control-Allow-Origin", origin);
 		headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-		headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-		headers.set("Access-Control-Allow-Credentials", "true");
+		headers.set(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Authorization",
+		);
+		// headers.set("Access-Control-Allow-Credentials", "true");
 	}
 	return await updateSession(request);
 }
