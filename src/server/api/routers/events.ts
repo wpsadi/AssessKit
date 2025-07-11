@@ -38,7 +38,7 @@ export const eventsRouter = createTRPCRouter({
 		const isAdmin = ctx.isAdmin;
 		const events = await ctx.db.query.events.findMany({
 			where: (events, { eq }) =>
-				isAdmin ? undefined : eq(events.organizerId, ctx.user.id),
+			eq(events.organizerId, ctx.user.id),
 			orderBy: (events, { asc }) => asc(events.orderIndex),
 			with: {
 				participants: {
