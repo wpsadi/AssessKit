@@ -35,8 +35,10 @@ const reorderSchema = z.object({
 export const eventsRouter = createTRPCRouter({
 	// READ - Get all events for the authenticated user
 	getEvents: protectedProcedure.query(async ({ ctx }) => {
+		const isAdmin = ctx.isAdmin;
 		const events = await ctx.db.query.events.findMany({
-			where: (events, { eq }) => eq(events.organizerId, ctx.user.id),
+			where: (events, { eq }) =>
+				isAdmin ? undefined : eq(events.organizerId, ctx.user.id),
 			orderBy: (events, { asc }) => asc(events.orderIndex),
 			with: {
 				participants: {
@@ -68,7 +70,12 @@ export const eventsRouter = createTRPCRouter({
 		.query(async ({ ctx, input }) => {
 			const event = await ctx.db.query.events.findFirst({
 				where: (events, { eq, and }) =>
-					and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+					and(
+						eq(events.id, input.id),
+						ctx.isAdmin
+							? undefined
+							: eq(events.organizerId, ctx.user.id),
+					),
 				with: {
 					participants: {
 						columns: {
@@ -101,8 +108,7 @@ export const eventsRouter = createTRPCRouter({
 			const { orderIndex, ...eventData } = input;
 
 			// If no order specified, get the next available order
-			const maxOrder =
-				orderIndex ??
+			const maxOrder = orderIndex ??
 				(await ctx.db
 					.select({ maxOrder: max(events.orderIndex) })
 					.from(events)
@@ -135,7 +141,14 @@ export const eventsRouter = createTRPCRouter({
 					...updateData,
 					updatedAt: new Date(),
 				})
-				.where(and(eq(events.id, id), eq(events.organizerId, ctx.user.id)))
+				.where(
+					and(
+						eq(events.id, id),
+						ctx.isAdmin
+							? undefined
+							: eq(events.organizerId, ctx.user.id),
+					),
+				)
 				.returning();
 
 			if (updatedEvent.length === 0) {
@@ -155,7 +168,12 @@ export const eventsRouter = createTRPCRouter({
 					.select({ orderIndex: events.orderIndex })
 					.from(events)
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					)
 					.limit(1);
 
@@ -167,7 +185,12 @@ export const eventsRouter = createTRPCRouter({
 				await tx
 					.delete(events)
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					);
 
 				// Update order of remaining events
@@ -177,7 +200,9 @@ export const eventsRouter = createTRPCRouter({
 					.where(
 						and(
 							gt(events.orderIndex, eventToDelete.orderIndex),
-							eq(events.organizerId, ctx.user.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
 						),
 					);
 				revalidatePath("/dashboard");
@@ -198,8 +223,13 @@ export const eventsRouter = createTRPCRouter({
 							updatedAt: new Date(),
 						})
 						.where(
-							and(eq(events.id, event.id), eq(events.organizerId, ctx.user.id)),
-						),
+							and(
+								eq(events.id, event.id),
+								ctx.isAdmin
+									? undefined
+									: eq(events.organizerId, ctx.user.id),
+							),
+						)
 				);
 
 				await Promise.all(updatePromises);
@@ -216,7 +246,12 @@ export const eventsRouter = createTRPCRouter({
 				.select({ isActive: events.isActive })
 				.from(events)
 				.where(
-					and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+					and(
+						eq(events.id, input.id),
+						ctx.isAdmin
+							? undefined
+							: eq(events.organizerId, ctx.user.id),
+					),
 				)
 				.limit(1);
 
@@ -231,7 +266,12 @@ export const eventsRouter = createTRPCRouter({
 					updatedAt: new Date(),
 				})
 				.where(
-					and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+					and(
+						eq(events.id, input.id),
+						ctx.isAdmin
+							? undefined
+							: eq(events.organizerId, ctx.user.id),
+					),
 				)
 				.returning();
 			revalidatePath("/dashboard");
@@ -247,7 +287,12 @@ export const eventsRouter = createTRPCRouter({
 					.select({ orderIndex: events.orderIndex })
 					.from(events)
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					)
 					.limit(1);
 
@@ -262,7 +307,9 @@ export const eventsRouter = createTRPCRouter({
 					.where(
 						and(
 							eq(events.orderIndex, currentEvent.orderIndex - 1),
-							eq(events.organizerId, ctx.user.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
 						),
 					)
 					.limit(1);
@@ -279,7 +326,12 @@ export const eventsRouter = createTRPCRouter({
 						updatedAt: new Date(),
 					})
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					);
 
 				await tx
@@ -291,7 +343,9 @@ export const eventsRouter = createTRPCRouter({
 					.where(
 						and(
 							eq(events.id, upperEvent.id),
-							eq(events.organizerId, ctx.user.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
 						),
 					);
 				revalidatePath("/dashboard");
@@ -308,7 +362,12 @@ export const eventsRouter = createTRPCRouter({
 					.select({ orderIndex: events.orderIndex })
 					.from(events)
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					)
 					.limit(1);
 
@@ -323,7 +382,9 @@ export const eventsRouter = createTRPCRouter({
 					.where(
 						and(
 							eq(events.orderIndex, currentEvent.orderIndex + 1),
-							eq(events.organizerId, ctx.user.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
 						),
 					)
 					.limit(1);
@@ -340,7 +401,12 @@ export const eventsRouter = createTRPCRouter({
 						updatedAt: new Date(),
 					})
 					.where(
-						and(eq(events.id, input.id), eq(events.organizerId, ctx.user.id)),
+						and(
+							eq(events.id, input.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
+						),
 					);
 
 				await tx
@@ -352,7 +418,9 @@ export const eventsRouter = createTRPCRouter({
 					.where(
 						and(
 							eq(events.id, lowerEvent.id),
-							eq(events.organizerId, ctx.user.id),
+							ctx.isAdmin
+								? undefined
+								: eq(events.organizerId, ctx.user.id),
 						),
 					);
 				revalidatePath("/dashboard");

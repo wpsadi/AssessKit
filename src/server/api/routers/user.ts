@@ -3,6 +3,11 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { revalidatePath } from "next/cache";
 export const userRouter = createTRPCRouter({
+	isAdmin: protectedProcedure.query(async ({ ctx }) => {
+		const { isAdmin } = ctx;
+		return isAdmin;
+	}),
+	
 	getUser: protectedProcedure.query(async ({ ctx }) => {
 		const { supabase } = ctx;
 		const data = await supabase.auth.getUser();

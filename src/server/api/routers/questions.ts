@@ -49,6 +49,7 @@ export const questionsRouter = createTRPCRouter({
 	create: protectedProcedure
 		.input(createQuestionSchema)
 		.mutation(async ({ ctx, input }) => {
+			const isAdmin = ctx.isAdmin;
 			const { orderIndex, ...questionData } = input;
 
 			// Check if questionId already exists in this round

@@ -70,7 +70,11 @@ export const leaderboardRouter = createTRPCRouter({
 						roundId ? eq(participantSessions.roundId, roundId) : undefined,
 					),
 				)
-				.where(eq(participants.eventId, eventId))
+				.where(
+					and(
+						eq(participants.eventId, eventId),
+					),
+				)
 				.groupBy(participants.id)
 				.orderBy(
 					desc(sql<number>`COALESCE(SUM(${responses.pointsEarned}), 0)`), // Primary: Total points

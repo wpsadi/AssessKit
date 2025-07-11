@@ -11,6 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ---------------------------
+// ✅ Admins
+// ---------------------------
+export const admins = pgTable("admins", {
+	userId: uuid("user_id").primaryKey()
+})
+
+// ---------------------------
 // ✅ Profiles
 // ---------------------------
 export const profiles = pgTable("profiles", {

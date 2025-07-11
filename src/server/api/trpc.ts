@@ -130,4 +130,32 @@ export const protectedProcedure = t.procedure
 				user: userData.user,
 			},
 		});
-	});
+	})
+	.use(async ({ ctx, next }) => {
+		const { supabase } = ctx;
+		const userId = ctx.user?.id;
+
+		if (!userId) {
+			throw new Error("Unauthorized access");
+		}
+
+		const { data: adminData, error } = await supabase
+			.from("admins")
+			.select("*")
+			.eq("user_id", userId)
+			.single();
+
+		let isAdmin = false;
+		if (adminData) {
+			isAdmin = true;
+		}
+
+		return next({
+			ctx: {
+				...ctx,
+				isAdmin,
+			},
+		});
+	})
+	;
+
