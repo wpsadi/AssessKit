@@ -119,7 +119,7 @@ export const roundsRouter = createTRPCRouter({
 			}
 
 			// Check if user owns the event
-			if (round.event.organizerId !== ctx.user.id) {
+			if (round.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 				throw new Error("Unauthorized");
 			}
 
@@ -197,7 +197,7 @@ export const roundsRouter = createTRPCRouter({
 				throw new Error("Round not found");
 			}
 
-			if (round.event.organizerId !== ctx.user.id) {
+			if (round.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 				throw new Error("Unauthorized");
 			}
 
@@ -233,7 +233,7 @@ export const roundsRouter = createTRPCRouter({
 					throw new Error("Round not found");
 				}
 
-				if (round.event.organizerId !== ctx.user.id) {
+				if (round.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 					throw new Error("Unauthorized");
 				}
 
@@ -318,7 +318,7 @@ export const roundsRouter = createTRPCRouter({
 					throw new Error("Round not found");
 				}
 
-				if (currentRound.event.organizerId !== ctx.user.id) {
+				if (currentRound.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 					throw new Error("Unauthorized");
 				}
 
@@ -377,7 +377,7 @@ export const roundsRouter = createTRPCRouter({
 					throw new Error("Round not found");
 				}
 
-				if (currentRound.event.organizerId !== ctx.user.id) {
+				if (currentRound.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 					throw new Error("Unauthorized");
 				}
 
@@ -431,7 +431,7 @@ export const roundsRouter = createTRPCRouter({
 				throw new Error("Round not found");
 			}
 
-			if (round.event.organizerId !== ctx.user.id) {
+			if (round.event.organizerId !== ctx.user.id && !ctx.isAdmin) {
 				throw new Error("Unauthorized");
 			}
 

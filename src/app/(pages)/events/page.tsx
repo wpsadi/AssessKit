@@ -3,18 +3,20 @@ import { redirect } from "next/navigation";
 import { EventCard } from "../dashboard/_components/event-card";
 
 export default async function HomePage({
-	params,
+	searchParams,
 }: {
-	params: Promise<{ eventId: string }>;
+	searchParams: Promise<{ eventId: string }>;
 }) {
 
-	const { eventId } = await params;
+	const { eventId } = await searchParams;
 
 	if (!eventId) {
 		return redirect("/dashboard");
 	}
 
 	const isAdmin = await api.user.isAdmin();
+
+	console.log("isAdmin:", isAdmin);
 
 	if (!isAdmin) {
 		redirect(`/events/${eventId}`);

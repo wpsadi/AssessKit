@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 
 import { db } from "@/server/db";
 import { createClient } from "@/utils/supabase/server";
+import { createClient as serviceClient } from "@/utils/supabase/service";
 
 /**
  * 1. CONTEXT
@@ -132,18 +133,20 @@ export const protectedProcedure = t.procedure
 		});
 	})
 	.use(async ({ ctx, next }) => {
-		const { supabase } = ctx;
 		const userId = ctx.user?.id;
 
 		if (!userId) {
 			throw new Error("Unauthorized access");
 		}
 
-		const { data: adminData, error } = await supabase
+		const supabase = serviceClient();
+		const { data: adminData,error} = await supabase
 			.from("admins")
 			.select("*")
 			.eq("user_id", userId)
 			.single();
+
+		console.log("Admin Data:", adminData,error);
 
 		let isAdmin = false;
 		if (adminData) {
