@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/react";
 import { invalidateEntityQueries } from "@/lib/query-keys";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -38,8 +37,7 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 		if (!dateString) return "";
 		return new Date(dateString).toISOString().slice(0, 16);
 	};
-
-	const queryClient = useQueryClient();
+	const utils = api.useUtils();
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [startDate, setStartDate] = useState(
@@ -52,7 +50,8 @@ export function EditEventDialog({ event, children }: EditEventDialogProps) {
 		onSuccess: () => {
 			toast.success("Event updated successfully");
 			// Use centralized invalidation helper for events
-			invalidateEntityQueries.events(queryClient, event.id);
+			utils.events.getEvents.invalidate();
+			utils.events.getEvent.invalidate({ id: event.id });
 			setOpen(false);
 			router.refresh();
 		},

@@ -23,92 +23,7 @@ interface DeleteParticipantDialogProps {
 	onSuccess?: () => void;
 }
 
-// export function DeleteParticipantDialog({ participant, children, onSuccess }: DeleteParticipantDialogProps) {
-//   const [open, setOpen] = useState(false)
-//   const [isDeleting, setIsDeleting] = useState(false)
-//   const [error, setError] = useState("")
 
-//   const deleteParticipantMutation = api.participants.delete.useMutation({
-//     onSuccess: () => {
-//       setOpen(false)
-//       setError("")
-//       setIsDeleting(false)
-//       onSuccess?.()
-//     },
-//     onError: (error) => {
-//       setError(error.message)
-//       setIsDeleting(false)
-//     },
-//   })
-
-//   const handleDelete = async () => {
-//     setIsDeleting(true)
-//     setError("")
-
-//     try {
-//       await deleteParticipantMutation.mutateAsync({
-//         id: participant.id,
-//       })
-//     } catch (error) {
-//       // Error is handled by onError callback
-//     }
-//   }
-
-//   return (
-//     <Dialog open={open} onOpenChange={setOpen}>
-//       <DialogTrigger asChild>{children}</DialogTrigger>
-//       <DialogContent className="sm:max-w-[400px]">
-//         <DialogHeader>
-//           <DialogTitle className="flex items-center gap-2">
-//             <Trash2 className="h-5 w-5 text-red-600" />
-//             Delete Participant
-//           </DialogTitle>
-//           <DialogDescription>
-//             Are you sure you want to delete this participant? This action cannot be undone.
-//           </DialogDescription>
-//         </DialogHeader>
-
-//         <div className="space-y-4">
-//           {error && (
-//             <Alert variant="destructive">
-//               <AlertTriangle className="h-4 w-4" />
-//               <AlertDescription>{error}</AlertDescription>
-//             </Alert>
-//           )}
-
-//           <div className="rounded-lg border border-gray-200 p-4">
-//             <h4 className="font-medium">{participant.name}</h4>
-//             <p className="text-sm text-gray-600">{participant.email}</p>
-//           </div>
-
-//           <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-//             <p className="text-sm text-red-700">
-//               <strong>Warning:</strong> Deleting this participant will also remove all their quiz responses and scores.
-//             </p>
-//           </div>
-//         </div>
-
-//         <DialogFooter>
-//           <Button
-//             type="button"
-//             variant="outline"
-//             onClick={() => setOpen(false)}
-//             disabled={isDeleting}
-//           >
-//             Cancel
-//           </Button>
-//           <Button
-//             variant="destructive"
-//             onClick={handleDelete}
-//             disabled={isDeleting}
-//           >
-//             {isDeleting ? "Deleting..." : "Delete Participant"}
-//           </Button>
-//         </DialogFooter>
-//       </DialogContent>
-//     </Dialog>
-//   )
-// }
 
 import { Button } from "@/components/ui/button";
 import {
@@ -138,11 +53,11 @@ export function DeleteParticipantDialog({
 	participant,
 	children,
 }: DeleteParticipantDialogProps) {
+	const utils = api.useUtils();
 	const toastId = "delete-participant-toast";
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
-	const queryClient = useQueryClient();
 	const deleteParticipant = api.participants.delete.useMutation({
 		onMutate: () => {
 			toast.loading("Deleting participant...", {
@@ -152,7 +67,9 @@ export function DeleteParticipantDialog({
 		onSuccess: (result) => {
 			if (result.success) {
 				// Use centralized invalidation helper for participants
-				invalidateEntityQueries.participants(queryClient, participant.eventId, participant.id);
+				utils.participants.getByEvent.invalidate({
+					eventId: participant.eventId,
+				});
 				setOpen(false);
 				toast.success("Participant deleted successfully!", {
 					id: toastId,

@@ -31,6 +31,7 @@ export function CreateParticipantDialog({
 	children,
 	onSuccess,
 }: CreateParticipantDialogProps) {
+	const utils = api.useUtils();
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
@@ -41,7 +42,7 @@ export function CreateParticipantDialog({
 	const createParticipantMutation = api.participants.create.useMutation({
 		onSuccess: () => {
 			// Use centralized invalidation helper for participants
-			invalidateEntityQueries.participants(queryClient, eventId);
+			utils.participants.getByEvent.invalidate({ eventId });
 			setOpen(false);
 			resetForm();
 			onSuccess?.();

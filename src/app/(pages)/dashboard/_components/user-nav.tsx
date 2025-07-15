@@ -23,8 +23,13 @@ export function UserNav() {
 		retry: 0,
 		queryHash: "getUser",
 	});
+	const utils = api.useUtils();
 
-	const signOut = api.user.signOut.useMutation({});
+	const signOut = api.user.signOut.useMutation({
+		onSuccess:()=>{
+			utils.invalidate();
+		}
+	});
 
 	const handleSignOut = async () => {
 		try {

@@ -157,12 +157,14 @@ export function EditParticipantDialog({
 	const [isActive, setIsActive] = useState(participant.isActive);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
-	const queryClient = useQueryClient();
+	const utils = api.useUtils();
 
 	const updateParticipant = api.participants.update.useMutation({
 		onSuccess: () => {
 			// Use centralized invalidation helper for participants
-			invalidateEntityQueries.participants(queryClient, participant.eventId, participant.id);
+			utils.participants.getByEvent.invalidate({
+				eventId: participant.eventId,
+			});
 			setOpen(false);
 			setError(null);
 			router.refresh();

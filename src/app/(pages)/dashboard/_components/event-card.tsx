@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { DeleteEventDialog } from "./delete-event-dialog";
 import { EditEventDialog } from "./edit-event-dialog";
+import { api } from "@/trpc/react";
 
 interface EventCardProps {
 	event: {
@@ -33,6 +34,7 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, participantCount = 0 }: EventCardProps) {
+
 	const formatDateTime = (dateString: string | null) => {
 		if (!dateString) return "Not set";
 		const date = new Date(dateString);

@@ -58,6 +58,7 @@ interface CSVImportWidgetProps {
 export default function CSVImportWidget({
 	onImportComplete,
 }: CSVImportWidgetProps) {
+	const utils = api.useUtils();
 	const { width, height } = useWindowSize();
 	const { eventId } = useParams<{ eventId: string }>();
 	const bulkInsertionHook = api.participants.bulkCreate.useMutation();
@@ -221,7 +222,9 @@ export default function CSVImportWidget({
 
 				if (result.success) {
 					// Use centralized invalidation helper for participants
-					invalidateEntityQueries.participants(queryClient, eventId);
+					utils.participants.getByEvent.invalidate({
+						eventId,
+					});
 
 					// Show confetti
 					setShowConfetti(true);
